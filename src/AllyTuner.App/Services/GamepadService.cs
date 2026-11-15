@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using AllyTuner.Core.Input;
 using AllyTuner.Core.Logging;
 using Microsoft.UI.Dispatching;
@@ -19,6 +18,10 @@ namespace AllyTuner.Services;
 ///   A                   press the focused control
 ///   B, LB, RB, Menu     handed to the window (back to menu, previous/next section, Settings)
 /// Polling only runs while the window is active, so it never reacts to input meant for a game.
+/// Directions and A go through <see cref="InputArbiter"/>, shared with the window's key handling, so a
+/// press that also arrives as an arrow / Enter / gamepad key moves focus only once.
+/// A failed controller read, or a failed focus move or button press, is logged (throttled) and skipped;
+/// it never crashes the app.
 /// API: https://learn.microsoft.com/uwp/api/windows.gaming.input.gamepad
 /// </summary>
 internal sealed class GamepadService
@@ -26,17 +29,20 @@ internal sealed class GamepadService
     private readonly object _gate = new();
     private readonly List<Gamepad> _pads = [];
     private readonly GamepadNavigator _navigator = new();
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly InputArbiter _arbiter;
+    private readonly FailureThrottle _readFailures = new(TimeSpan.FromSeconds(30));
+    private readonly FailureThrottle _tickFailures = new(TimeSpan.FromSeconds(30));
     private readonly DispatcherQueueTimer _timer;
     private readonly Func<XamlRoot?> _xamlRoot;
     private readonly Action<NavCommand> _windowCommand;
     private readonly IAppLog _log;
     private bool _windowActive = true;
 
-    public GamepadService(DispatcherQueue dispatcher, Func<XamlRoot?> xamlRoot, Action<NavCommand> windowCommand, IAppLog log)
+    public GamepadService(DispatcherQueue dispatcher, Func<XamlRoot?> xamlRoot, Action<NavCommand> windowCommand, InputArbiter arbiter, IAppLog log)
     {
         _xamlRoot = xamlRoot;
         _windowCommand = windowCommand;
+        _arbiter = arbiter;
         _log = log;
 
         Gamepad.GamepadAdded += OnGamepadAdded;
@@ -63,6 +69,7 @@ internal sealed class GamepadService
             {
                 // Forget held buttons so nothing fires when the user comes back.
                 _navigator.Reset();
+                _arbiter.SetGamepadState(null, activateHeld: false);
             }
         }
     }
@@ -104,6 +111,26 @@ internal sealed class GamepadService
             return;
         }
 
+        try
+        {
+            Poll();
+        }
+#pragma warning disable CA1031 // An exception here would reach the dispatcher and crash the app; log and carry on.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            // Start clean on the next tick: the next reading is treated as the first, so nothing fires by accident.
+            _navigator.Reset();
+            _arbiter.SetGamepadState(null, activateHeld: false);
+            if (_tickFailures.ShouldLog(InputClock.Now, out var skipped))
+            {
+                _log.Warn($"Controller navigation failed{Skipped(skipped)}; it will keep trying.", ex);
+            }
+        }
+    }
+
+    private void Poll()
+    {
         Gamepad[] pads;
         lock (_gate)
         {
@@ -112,25 +139,55 @@ internal sealed class GamepadService
 
         if (pads.Length == 0)
         {
+            // No controller (or the last one was unplugged mid-press): nothing is held any more, so
+            // keyboard keys must not stay blocked.
+            _arbiter.SetGamepadState(null, activateHeld: false);
             return;
         }
 
-        // Merge all controllers into one reading.
+        // Merge all controllers into one reading. A controller that fails to read (for example one that is
+        // being unplugged) is skipped, so the others keep working.
         var buttons = PadButtons.None;
         double x = 0, y = 0;
         foreach (var pad in pads)
         {
-            var reading = pad.GetCurrentReading();
+            GamepadReading reading;
+            try
+            {
+                reading = pad.GetCurrentReading();
+            }
+#pragma warning disable CA1031 // A failed read of one controller must not stop the others or crash the app.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                if (_readFailures.ShouldLog(InputClock.Now, out var skipped))
+                {
+                    _log.Warn($"Reading a controller failed{Skipped(skipped)}; skipping it.", ex);
+                }
+
+                continue;
+            }
+
             buttons |= Map(reading.Buttons);
             if (Math.Abs(reading.LeftThumbstickX) > Math.Abs(x)) x = reading.LeftThumbstickX;
             if (Math.Abs(reading.LeftThumbstickY) > Math.Abs(y)) y = reading.LeftThumbstickY;
         }
 
-        foreach (var command in _navigator.Update(new PadState(buttons, x, y), _clock.Elapsed))
+        var now = InputClock.Now;
+        var commands = _navigator.Update(new PadState(buttons, x, y), now);
+        _arbiter.SetGamepadState(_navigator.HeldDirection, activateHeld: (buttons & PadButtons.A) != 0);
+
+        foreach (var command in commands)
         {
-            Execute(command);
+            // Skip a press the window already handled as a key event (controller sending arrow keys, etc.).
+            if (_arbiter.TryClaim(InputSource.Gamepad, command, now))
+            {
+                Execute(command);
+            }
         }
     }
+
+    private static string Skipped(int count) => count > 0 ? $" ({count} similar failures since the last report)" : string.Empty;
 
     private void Execute(NavCommand command)
     {
@@ -183,6 +240,12 @@ internal sealed class GamepadService
     /// <summary>Press whatever has focus, the same way an accessibility tool would.</summary>
     private static void Activate(UIElement element)
     {
+        // Invoking a disabled control throws (ElementNotEnabledException); there is nothing to press anyway.
+        if (element is Control { IsEnabled: false })
+        {
+            return;
+        }
+
         var peer = FrameworkElementAutomationPeer.FromElement(element) ?? FrameworkElementAutomationPeer.CreatePeerForElement(element);
         if (peer is null)
         {

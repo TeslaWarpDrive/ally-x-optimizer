@@ -17,7 +17,9 @@
       OpenPaneLength="260"
       XYFocusKeyboardNavigation="Enabled"
       Loaded="Nav_Loaded"
-      SelectionChanged="Nav_SelectionChanged">
+      SelectionChanged="Nav_SelectionChanged"
+      PreviewKeyDown="Root_PreviewKeyDown"
+      PreviewKeyUp="Root_PreviewKeyUp">
     <NavigationView.MenuItems>
       <NavigationViewItem Content="Home" Tag="home">
         <NavigationViewItem.Icon>

@@ -87,6 +87,12 @@ public sealed class GamepadNavigator
         }
     }
 
+    /// <summary>
+    /// The direction the D-pad or stick is holding right now (including one held since startup), or null.
+    /// <see cref="InputArbiter"/> uses it to ignore key events that echo the same press.
+    /// </summary>
+    public NavCommand? HeldDirection => _heldDirection;
+
     /// <summary>Forget all held state, e.g. after the window loses focus.</summary>
     public void Reset()
     {

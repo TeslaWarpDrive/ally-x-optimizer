@@ -40,7 +40,8 @@ Plug the Ally in for this. Each run takes a few seconds and saves a report to `D
 2. **Run the probe on the desktop.** Open **Hardware probe** (left menu, or the button on Home) and press **Run probe**. It should finish with "Probe finished" and show *Key results*. Note anything shown in orange.
 3. **Run it again inside the Xbox Full Screen Experience.** Start Ally Tuner from the Full Screen Experience and run the probe once more. (This tells us whether Windows reports the Full Screen Experience correctly.)
 4. **If Armoury Crate is open,** note which mode it shows (Silent / Performance / Turbo) and its VRAM setting, so they can be compared with the report.
-5. **Send both reports.** Copy the two newest `probe-<date>-<time>.txt` files from `Documents\Ally Tuner` to the Mac and paste them in. Also send `app.log` (Settings → **Open logs folder**) if anything failed.
+5. **Controller, again.** Move around with the D-pad and press A on a few buttons. Each press should still move **one step** or press **once**, in the desktop and in the Full Screen Experience. (This build ignores the extra key presses some controller modes send.)
+6. **Send both reports.** Copy the two newest `probe-<date>-<time>.txt` files from `Documents\Ally Tuner` to the Mac and paste them in. Also send `app.log` (Settings → **Open logs folder**) if anything failed.
 
 Nothing in these reports is treated as confirmed until it has been reviewed. They contain no user name, PC name or serial numbers.
 

@@ -92,31 +92,50 @@ jobs:
           Write-Host ("Publish output: {0:N0} MB" -f $size)
 
       - name: Load signing certificate
+        # The password is used only inside this step's PowerShell process: never on a command line.
+        # 1. Check the certificate with EphemeralKeySet, so the check itself stores no private key anywhere.
+        # 2. Import it, non-exportable, into the current user's store so signtool can select it by thumbprint
+        #    (/sha1) without a password. "Remove signing certificate" deletes it and its key at the end.
         env:
           PFX_BASE64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
         run: |
           if ([string]::IsNullOrEmpty($env:PFX_BASE64)) { throw 'Secret SIGNING_CERT_PFX_BASE64 is not available to this run.' }
+          $X509 = [Security.Cryptography.X509Certificates.X509Certificate2]
+          $Flags = [Security.Cryptography.X509Certificates.X509KeyStorageFlags]
           $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
-          $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:SIGNING_PASSWORD)
-          $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path 'signing/AllyTuner-dev-signing.cer').Path)
-          if ($cert.Thumbprint -ne $env:EXPECTED_CERT_THUMBPRINT -or $public.Thumbprint -ne $cert.Thumbprint) {
-            throw "Signing certificate thumbprint $($cert.Thumbprint) does not match the committed public certificate."
+          try {
+            $cert = $X509::new($pfx, $env:SIGNING_PASSWORD, $Flags::EphemeralKeySet)
+            try {
+              $public = $X509::new((Resolve-Path 'signing/AllyTuner-dev-signing.cer').Path)
+              if ($cert.Thumbprint -ne $env:EXPECTED_CERT_THUMBPRINT -or $public.Thumbprint -ne $cert.Thumbprint) {
+                throw "Signing certificate thumbprint $($cert.Thumbprint) does not match the committed public certificate."
+              }
+              if (-not $cert.HasPrivateKey) { throw 'Signing certificate has no private key.' }
+            } finally { $cert.Dispose() }
+
+            $signing = $X509::new($pfx, $env:SIGNING_PASSWORD, ($Flags::UserKeySet -bor $Flags::PersistKeySet))
+            $store = [Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+            try {
+              $store.Open('ReadWrite')
+              $store.Add($signing)
+            } finally { $store.Close(); $signing.Dispose() }
+          } finally {
+            # The key file is not needed once the certificate is in the store.
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
           }
-          if (-not $cert.HasPrivateKey) { throw 'Signing certificate has no private key.' }
+          if (-not (Test-Path "Cert:\CurrentUser\My\$env:EXPECTED_CERT_THUMBPRINT")) { throw 'Import into the certificate store failed.' }
+
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object { [version] $_.Directory.Parent.Name } -Descending | Select-Object -First 1
           if (-not $signtool) { throw 'signtool.exe not found.' }
-          "SIGNING_PFX=$pfx"               >> $env:GITHUB_ENV
           "SIGNTOOL=$($signtool.FullName)" >> $env:GITHUB_ENV
           Write-Host "Using $($signtool.FullName)"
 
       - name: Sign app binaries
-        env:
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
         run: |
-          ./scripts/ci/Sign-Files.ps1 -Path @(
+          ./scripts/ci/Sign-Files.ps1 -Thumbprint $env:EXPECTED_CERT_THUMBPRINT -Path @(
             'artifacts/publish/AllyTuner.exe',
             'artifacts/publish/AllyTuner.dll',
             'artifacts/publish/AllyTuner.Core.dll',
@@ -150,9 +169,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
 
       - name: Sign installer
-        env:
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
-        run: ./scripts/ci/Sign-Files.ps1 -Path (Get-ChildItem artifacts/installer/*.exe).FullName
+        run: ./scripts/ci/Sign-Files.ps1 -Thumbprint $env:EXPECTED_CERT_THUMBPRINT -Path (Get-ChildItem artifacts/installer/*.exe).FullName
 
       - name: Verify signatures
         run: |
@@ -199,4 +216,19 @@ jobs:
       - name: Remove signing certificate
         if: always()
         run: |
-          if ($env:SIGNING_PFX -and (Test-Path $env:SIGNING_PFX)) { Remove-Item $env:SIGNING_PFX -Force }
+          # Delete the certificate and its private key from the store, and the key file if it is still there.
+          $store = [Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $store.Open('ReadWrite')
+          try {
+            foreach ($c in @($store.Certificates.Find('FindByThumbprint', $env:EXPECTED_CERT_THUMBPRINT, $false))) {
+              try {
+                $key = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($c)
+                if ($key -is [Security.Cryptography.RSACng]) { $key.Key.Delete() }
+                elseif ($key -is [Security.Cryptography.RSACryptoServiceProvider]) { $key.PersistKeyInCsp = $false; $key.Clear() }
+              } catch { Write-Warning "Could not delete the private key: $_" }
+              $store.Remove($c)
+              Write-Host "Removed certificate $($c.Thumbprint) from the store."
+            }
+          } finally { $store.Close() }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          if (Test-Path $pfx) { Remove-Item $pfx -Force }

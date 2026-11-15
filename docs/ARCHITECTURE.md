@@ -41,6 +41,10 @@ Every catalogued endpoint is `Unconfirmed` until Bradley's Probe report matches 
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".
 
+A press can also arrive as a key event: arrow keys or Enter from a controller mode that emulates a keyboard, or the `Gamepad*` keys XAML's own focus navigation reacts to. `Core/Input/InputArbiter` (unit-tested) is shared by `GamepadService` and the window's root `PreviewKeyDown`/`PreviewKeyUp`. A key that echoes a controller press (same direction or A, while it is held or within 150 ms) is swallowed, and so is a controller press that its own key echo already handled. A keyboard used on its own is unaffected.
+
+A failed controller read, focus move or button press is logged (at most once per 30 s, with a count) and skipped; it never crashes the app.
+
 ## CI
 
 `.github/workflows/ci.yml` (windows-latest) runs the Core tests, publishes the app, signs our binaries, builds the Inno Setup installer, signs it, verifies every signature against the committed certificate's thumbprint, and uploads the installer as a build artifact. It never creates a GitHub Release. `main` is protected: changes arrive only by PR, with a green `build` check.
