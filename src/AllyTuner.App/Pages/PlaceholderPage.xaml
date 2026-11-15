@@ -1,0 +1,23 @@
+<Page
+    x:Class="AllyTuner.Pages.PlaceholderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock x:Name="TitleText" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock x:Name="SummaryText" Style="{StaticResource BodyLargeTextStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+      </StackPanel>
+
+      <InfoBar x:Name="PhaseInfoBar" IsOpen="True" IsClosable="False" Severity="Informational"
+               Message="Nothing on this page changes your device yet." />
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Planned for this section" Style="{StaticResource CardLabelTextStyle}" />
+          <StackPanel x:Name="PlannedList" Spacing="10" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

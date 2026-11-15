@@ -1,0 +1,19 @@
+<Project>
+  <!--
+    Shared settings for every project. CI overrides Version/FileVersion/InformationalVersion
+    with the run number and commit (see .github/workflows/ci.yml).
+  -->
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Product>Ally Tuner</Product>
+    <Company>Ally Tuner</Company>
+    <Copyright>Ally Tuner contributors</Copyright>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

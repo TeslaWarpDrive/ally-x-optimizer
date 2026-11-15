@@ -1,0 +1,192 @@
+name: CI
+
+# Builds, tests and packages Ally Tuner on every PR and on main.
+# Produces a signed Inno Setup installer as a build artifact. Never publishes a GitHub Release.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  # SHA-1 thumbprint of signing/AllyTuner-dev-signing.cer. CI refuses to sign with any other certificate.
+  EXPECTED_CERT_THUMBPRINT: "294D0BF609D8DDB65DE829842210A5646ACBE672"
+
+jobs:
+  build:
+    name: build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Compute version
+        id: version
+        run: |
+          [xml] $props = Get-Content Directory.Build.props
+          $prefix = @($props.Project.PropertyGroup.VersionPrefix | Where-Object { $_ })[0]
+          if (-not $prefix) { throw 'VersionPrefix not found in Directory.Build.props' }
+          $run = '${{ github.run_number }}'
+          $sha = '${{ github.sha }}'.Substring(0, 7)
+          "prefix=$prefix"                 >> $env:GITHUB_OUTPUT
+          "file=$prefix.$run"              >> $env:GITHUB_OUTPUT
+          "informational=$prefix+ci.$run.$sha" >> $env:GITHUB_OUTPUT
+          "label=$prefix-ci.$run"          >> $env:GITHUB_OUTPUT
+          Write-Host "Version $prefix-ci.$run ($sha)"
+
+      - name: Unit tests (Core)
+        run: >
+          dotnet test tests/AllyTuner.Core.Tests/AllyTuner.Core.Tests.csproj -c Release
+          --logger "trx;LogFileName=core-tests.trx"
+          --results-directory artifacts/test-results
+
+      - name: Publish app (self-contained, win-x64)
+        run: >
+          dotnet publish src/AllyTuner.App/AllyTuner.App.csproj -c Release -r win-x64 -p:Platform=x64
+          -p:Version=${{ steps.version.outputs.prefix }}
+          -p:AssemblyVersion=${{ steps.version.outputs.prefix }}.0
+          -p:FileVersion=${{ steps.version.outputs.file }}
+          -p:InformationalVersion=${{ steps.version.outputs.informational }}
+          -o artifacts/publish
+
+      - name: Check publish output
+        run: |
+          foreach ($f in 'AllyTuner.exe', 'AllyTuner.dll', 'AllyTuner.Core.dll', 'AllyTuner.Platform.Windows.dll') {
+            if (-not (Test-Path "artifacts/publish/$f")) { throw "Missing from publish output: $f" }
+          }
+          # WinUI needs its compiled resource index (resources.pri or AllyTuner.pri) next to the exe.
+          if (-not (Get-ChildItem artifacts/publish/*.pri)) { throw 'No .pri resource file in publish output.' }
+          $size = (Get-ChildItem artifacts/publish -Recurse | Measure-Object Length -Sum).Sum / 1MB
+          Write-Host ("Publish output: {0:N0} MB" -f $size)
+
+      - name: Load signing certificate
+        env:
+          PFX_BASE64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:PFX_BASE64)) { throw 'Secret SIGNING_CERT_PFX_BASE64 is not available to this run.' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:SIGNING_PASSWORD)
+          $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new((Resolve-Path 'signing/AllyTuner-dev-signing.cer').Path)
+          if ($cert.Thumbprint -ne $env:EXPECTED_CERT_THUMBPRINT -or $public.Thumbprint -ne $cert.Thumbprint) {
+            throw "Signing certificate thumbprint $($cert.Thumbprint) does not match the committed public certificate."
+          }
+          if (-not $cert.HasPrivateKey) { throw 'Signing certificate has no private key.' }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object { [version] $_.Directory.Parent.Name } -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe not found.' }
+          "SIGNING_PFX=$pfx"               >> $env:GITHUB_ENV
+          "SIGNTOOL=$($signtool.FullName)" >> $env:GITHUB_ENV
+          Write-Host "Using $($signtool.FullName)"
+
+      - name: Sign app binaries
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          ./scripts/ci/Sign-Files.ps1 -Path @(
+            'artifacts/publish/AllyTuner.exe',
+            'artifacts/publish/AllyTuner.dll',
+            'artifacts/publish/AllyTuner.Core.dll',
+            'artifacts/publish/AllyTuner.Platform.Windows.dll')
+
+      - name: Install Inno Setup (if the runner lacks it)
+        run: |
+          function Find-Iscc {
+            Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+          }
+          $iscc = Find-Iscc
+          if (-not $iscc) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw 'choco install innosetup failed.' }
+            $iscc = Find-Iscc
+          }
+          if (-not $iscc) { throw 'ISCC.exe not found after install.' }
+          "ISCC=$($iscc.FullName)" >> $env:GITHUB_ENV
+          Write-Host "Using $($iscc.FullName)"
+
+      - name: Build installer
+        run: |
+          $root = (Get-Location).Path
+          & $env:ISCC /Qp `
+            "/DAppVersion=${{ steps.version.outputs.label }}" `
+            "/DFileVersion=${{ steps.version.outputs.file }}" `
+            "/DPublishDir=$root\artifacts\publish" `
+            "/DOutputDir=$root\artifacts\installer" `
+            installer\AllyTuner.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
+
+      - name: Sign installer
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./scripts/ci/Sign-Files.ps1 -Path (Get-ChildItem artifacts/installer/*.exe).FullName
+
+      - name: Verify signatures
+        run: |
+          # The runner does not trust our self-signed root, so Status is not "Valid" here;
+          # what matters is that every file carries a signature from exactly our certificate.
+          $files = @(Get-ChildItem artifacts/installer/*.exe) + @(Get-Item artifacts/publish/AllyTuner.exe, artifacts/publish/AllyTuner*.dll)
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f.FullName
+            if ($sig.SignerCertificate.Thumbprint -ne $env:EXPECTED_CERT_THUMBPRINT) { throw "$($f.Name) is not signed with the Ally Tuner certificate." }
+            if (-not $sig.TimeStamperCertificate) { Write-Warning "$($f.Name) has no timestamp." }
+            Write-Host "$($f.Name): signed by $($sig.SignerCertificate.Subject)"
+          }
+
+      - name: Stage package
+        run: |
+          $pkg = 'artifacts/package'
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item artifacts/installer/*.exe $pkg
+          Copy-Item signing/AllyTuner-dev-signing.cer $pkg
+          Copy-Item scripts/Install-SigningCert.ps1 $pkg
+          Copy-Item docs/TESTING-ON-ALLY.md $pkg
+          Get-ChildItem $pkg -File | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) } |
+            Set-Content "$pkg/SHA256SUMS.txt"
+          Get-Content "$pkg/SHA256SUMS.txt"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: AllyTuner-${{ steps.version.outputs.label }}
+          path: artifacts/package
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove signing certificate
+        if: always()
+        run: |
+          if ($env:SIGNING_PFX -and (Test-Path $env:SIGNING_PFX)) { Remove-Item $env:SIGNING_PFX -Force }

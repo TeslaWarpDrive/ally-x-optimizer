@@ -1,0 +1,82 @@
+<Page
+    x:Class="AllyTuner.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Ally Tuner" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Preview build: Ally Tuner only reads information right now. It does not change anything on your device." />
+      </StackPanel>
+
+      <InfoBar x:Name="DeviceInfoBar" IsOpen="True" IsClosable="False" Severity="Informational" Title="Checking your device…" />
+
+      <Grid ColumnSpacing="16" RowSpacing="16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Device" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="DeviceValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="DeviceDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Administrator" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="AdminValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="AdminDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Dry-run mode" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="DryRunValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock
+                Style="{StaticResource CardDetailTextStyle}"
+                Text="While dry-run is on, Ally Tuner only logs what it would change. It stays on until you check each control on the Ally." />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Windows" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="OsValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="VersionDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Recommended Plugged-In Setup" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="One tap to apply high sustained power, 10 GB VRAM, Battery Care, an aggressive fan curve and Windows gaming settings, with a summary to confirm first. Coming in Phase 6." />
+          <Button Content="Apply Recommended Setup" Style="{StaticResource TouchAccentButtonStyle}" IsEnabled="False" />
+        </StackPanel>
+      </Border>
+
+      <StackPanel Spacing="12">
+        <TextBlock Text="Diagnostics" Style="{StaticResource CardValueTextStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Button x:Name="SaveReportButton" Content="Save diagnostics report" Style="{StaticResource TouchAccentButtonStyle}" Click="SaveReportButton_Click" />
+          <Button Content="Open reports folder" Style="{StaticResource TouchButtonStyle}" Click="OpenReportsButton_Click" />
+        </StackPanel>
+        <TextBlock x:Name="ReportStatus" Style="{StaticResource CardDetailTextStyle}" IsTextSelectionEnabled="True" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</Page>
