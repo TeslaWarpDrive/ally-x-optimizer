@@ -4,8 +4,8 @@ name: CI
 # Produces a signed Inno Setup installer as a build artifact. Never publishes a GitHub Release.
 
 on:
+  # Every PR, including stacked PRs whose base is another phase branch.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -60,6 +60,16 @@ jobs:
         run: >
           dotnet test tests/AllyTuner.Core.Tests/AllyTuner.Core.Tests.csproj -c Release
           --logger "trx;LogFileName=core-tests.trx"
+          --results-directory artifacts/test-results
+
+      - name: Platform smoke tests (Windows, read-only)
+        # Runs the real read-only Probe on this non-ASUS runner: proves the Windows interop does not crash
+        # and that no ASUS calls are sent on non-ASUS hardware. The runner's Probe report is kept as a test result.
+        env:
+          PROBE_REPORT_OUT: ${{ github.workspace }}/artifacts/test-results/probe-ci-runner.txt
+        run: >
+          dotnet test tests/AllyTuner.Platform.Windows.Tests/AllyTuner.Platform.Windows.Tests.csproj -c Release
+          --logger "trx;LogFileName=platform-tests.trx"
           --results-directory artifacts/test-results
 
       - name: Publish app (self-contained, win-x64)

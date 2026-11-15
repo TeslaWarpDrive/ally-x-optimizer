@@ -48,10 +48,24 @@ public sealed partial class MainWindow : Window
             {
                 Navigate(typeof(HomePage), null);
             }
+            else if (tag == "probe")
+            {
+                Navigate(typeof(ProbePage), null);
+            }
             else if (Sections.ByTag(tag) is { } section)
             {
                 Navigate(typeof(PlaceholderPage), section);
             }
+        }
+    }
+
+    /// <summary>Selects a menu item by its Tag (used by buttons that link to another section) and focuses it.</summary>
+    public void ShowSection(string tag)
+    {
+        if (Nav.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(i => i.Tag as string == tag) is { } item)
+        {
+            Nav.SelectedItem = item;
+            FocusSelectedNavItem();
         }
     }
 

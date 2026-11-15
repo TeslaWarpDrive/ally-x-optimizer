@@ -1,0 +1,66 @@
+<Page
+    x:Class="AllyTuner.Pages.ProbePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Hardware probe" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Reads how this Ally's ASUS and Windows interfaces respond and saves a report to send back. It only reads; it changes nothing." />
+      </StackPanel>
+
+      <InfoBar
+          x:Name="StatusInfoBar"
+          IsOpen="True"
+          IsClosable="False"
+          Severity="Informational"
+          Title="Ready"
+          Message="Plug the Ally in first, then press Run probe. It takes a few seconds." />
+
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Button x:Name="RunButton" Content="Run probe" Style="{StaticResource TouchAccentButtonStyle}" Click="RunButton_Click" />
+        <Button Content="Open reports folder" Style="{StaticResource TouchButtonStyle}" Click="OpenReportsButton_Click" />
+        <ProgressRing x:Name="Progress" IsActive="False" Width="40" Height="40" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <TextBlock x:Name="SavedText" Style="{StaticResource CardDetailTextStyle}" IsTextSelectionEnabled="True" Visibility="Collapsed" />
+
+      <Border x:Name="KeyResultsCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Key results" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Nothing here is treated as confirmed until the saved report has been reviewed." />
+          <StackPanel x:Name="KeyResultsList" Spacing="10" />
+        </StackPanel>
+      </Border>
+
+      <Expander
+          x:Name="FullReportExpander"
+          Header="Full report"
+          HorizontalAlignment="Stretch"
+          HorizontalContentAlignment="Stretch"
+          MinHeight="56"
+          Visibility="Collapsed">
+        <TextBlock
+            x:Name="FullReportText"
+            FontFamily="Consolas"
+            FontSize="13"
+            TextWrapping="Wrap"
+            IsTextSelectionEnabled="True" />
+      </Expander>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="What to send back" Style="{StaticResource CardLabelTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Each run saves probe-(date)-(time).txt in Documents\Ally Tuner. Copy the newest one to the Mac and paste its contents into the chat. It has no user name, PC name or serial numbers." />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

@@ -6,7 +6,7 @@ using AllyTuner.Platform.Windows;
 
 namespace AllyTuner;
 
-/// <summary>Everything the pages share. Phase 0: logging, settings and a read-only system snapshot.</summary>
+/// <summary>Everything the pages share: logging, settings, a read-only system snapshot and live status checks.</summary>
 public sealed class AppServices
 {
     private readonly Lazy<Task<SystemSnapshot>> _snapshot;
@@ -18,6 +18,7 @@ public sealed class AppServices
         SettingsStore = settingsStore;
         Settings = settings;
         _snapshot = new Lazy<Task<SystemSnapshot>>(() => Task.Run(systemInfo.ReadSnapshot));
+        EnvironmentReader = new EnvironmentReader(log);
         AppVersion = typeof(AppServices).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     }
@@ -32,6 +33,9 @@ public sealed class AppServices
     public AppSettings Settings { get; }
 
     public string AppVersion { get; }
+
+    /// <summary>Read-only live status (ASUS driver, Armoury Crate, power source, Full Screen Experience).</summary>
+    public EnvironmentReader EnvironmentReader { get; }
 
     /// <summary>Folder for diagnostics reports Bradley copies off the device: Documents\Ally Tuner.</summary>
     public static string ReportsDirectory =>

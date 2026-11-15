@@ -1,6 +1,6 @@
 # Testing Ally Tuner on the Ally
 
-This build **only reads information**. It changes nothing on the device: no power, fan, VRAM, battery or Windows settings.
+This build **only reads information**. It changes nothing on the device: no power, fan, VRAM, battery or Windows settings. The hardware probe (Phase 1) also only reads.
 
 ## What's in the download
 
@@ -31,6 +31,18 @@ To undo this later, run the same command with `-Remove`.
 Double-click `AllyTuner-Setup-<version>.exe`. The admin prompt should say **Verified publisher: Ally Tuner Dev Signing**. Leave "Launch Ally Tuner" ticked at the end.
 
 Upgrading: run a newer installer over the old one. Uninstall: Settings → Apps → Ally Tuner. Your logs are kept in `%LOCALAPPDATA%\AllyTuner`.
+
+## Phase 1 checklist: hardware probe
+
+Plug the Ally in for this. Each run takes a few seconds and saves a report to `Documents\Ally Tuner`.
+
+1. **Home → System status.** Note what the four cards say: *ASUS control interface*, *Armoury Crate*, *Xbox Full Screen Experience*, *Power*. They refresh every 10 seconds; unplug the charger for a moment and check *Power* changes.
+2. **Run the probe on the desktop.** Open **Hardware probe** (left menu, or the button on Home) and press **Run probe**. It should finish with "Probe finished" and show *Key results*. Note anything shown in orange.
+3. **Run it again inside the Xbox Full Screen Experience.** Start Ally Tuner from the Full Screen Experience and run the probe once more. (This tells us whether Windows reports the Full Screen Experience correctly.)
+4. **If Armoury Crate is open,** note which mode it shows (Silent / Performance / Turbo) and its VRAM setting, so they can be compared with the report.
+5. **Send both reports.** Copy the two newest `probe-<date>-<time>.txt` files from `Documents\Ally Tuner` to the Mac and paste them in. Also send `app.log` (Settings → **Open logs folder**) if anything failed.
+
+Nothing in these reports is treated as confirmed until it has been reviewed. They contain no user name, PC name or serial numbers.
 
 ## Phase 0 checklist
 
