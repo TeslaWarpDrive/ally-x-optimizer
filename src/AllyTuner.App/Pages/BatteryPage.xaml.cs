@@ -76,7 +76,7 @@ public sealed partial class BatteryPage : Page
             Maximum = range.Max,
             StepFrequency = 5,
             SmallChange = 5,
-            Value = App.Services.Journal.LastApplied(care.Id) ?? care.Recommended ?? 80,
+            Value = App.Services.Journal.LatestDone(care.Id)?.Value ?? care.Recommended ?? 80,
             MinHeight = 56,
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(slider, "Battery charge limit");

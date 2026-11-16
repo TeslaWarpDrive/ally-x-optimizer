@@ -181,6 +181,19 @@ public sealed class ChangeJournal
         }
     }
 
+    /// <summary>
+    /// The newest change to this setting that went through, simulated (dry-run) or applied, or null. Pages use it to
+    /// show "last simulated" next to "last set", and dry-run descriptions use it for the value a batch just chose.
+    /// </summary>
+    public ChangeRecord? LatestDone(string settingId)
+    {
+        lock (_gate)
+        {
+            return _records.LastOrDefault(r => r.SettingId == settingId && r.Value is not null
+                && r.Outcome is ChangeOutcome.Applied or ChangeOutcome.Simulated);
+        }
+    }
+
     /// <summary>Settings Ally Tuner has written live, with the last value written to each.</summary>
     public IReadOnlyDictionary<string, int> AllLastApplied()
     {
