@@ -62,6 +62,15 @@ public class AsusEndpointCatalogTests
     {
         Assert.Equal(new uint[] { 0, 1, 2 }, AsusEndpointCatalog.ById(0x00110024)!.Arguments);
         Assert.Equal(new uint[] { 0, 1, 2 }, AsusEndpointCatalog.ById(0x00110025)!.Arguments);
+        Assert.Equal(new uint[] { 0, 1, 2 }, AsusEndpointCatalog.ById(0x00110032)!.Arguments);
+    }
+
+    [Fact]
+    public void Every_fan_curve_endpoint_reads_every_mode()
+    {
+        var curves = AsusEndpointCatalog.All.Where(e => e.Kind == AsusValueKind.FanCurve).ToList();
+        Assert.NotEmpty(curves);
+        Assert.All(curves, e => Assert.Equal(new uint[] { 0, 1, 2 }, e.Arguments));
     }
 
     [Fact]

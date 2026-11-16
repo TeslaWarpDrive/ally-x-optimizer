@@ -110,7 +110,7 @@ public static class AsusEndpointCatalog
             "Phase 4: read the factory curve for each mode before offering a custom one.",
             "Present; mode 0 curve 48,54,59,62,62,62,62,62 °C → 1,9,13,13,13,13,13,13 %."),
         new(0x00110032, "Mid fan curve", AsusFeature.FanCurves, AsusValueKind.FanCurve,
-            AsusRequestShape.Standard, NoArgument, SourceAgreement.CrossChecked,
+            AsusRequestShape.Standard, FanCurveModes, SourceAgreement.CrossChecked,
             [GHelperAcpi + "#L102", LinuxAsusWmiHeader + "#L105", HandheldCompanionAcpi + "#L49"],
             "Only if present.",
             NotInPublicScan),

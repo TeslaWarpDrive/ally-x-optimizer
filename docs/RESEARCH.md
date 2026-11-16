@@ -97,7 +97,7 @@ The same list is in code: `src/AllyTuner.Core/Asus/AsusEndpointCatalog.cs` (a un
 | `0x00110023` | GPU fan range | [GH L98][gh-acpi-devsfan], [HC L45][hc-acpi-devsfan] | cross-checked | Present; 0x8D | Phase 4 context |
 | `0x00110024` | CPU fan curve (per mode) | [GH L100, L635-L666][gh-acpi-curve], [LX L103][lx-h-curves], [LX asus-wmi.c L3604-L3647][lx-wmi-curve], [HC L47][hc-acpi-curves] | cross-checked | mode 0: 48,54,59,62,62,62,62,62 °C → 1,9,18,22,22,22,22,22 % | Phase 4 fan curves |
 | `0x00110025` | GPU fan curve (per mode) | [GH L101][gh-acpi-curve], [LX L104][lx-h-curves], [HC L48][hc-acpi-curves] | cross-checked | mode 0: same temps → 1,9,13,13,13,13,13,13 % | Phase 4 |
-| `0x00110032` | Mid fan curve | [GH L102][gh-acpi-curve], [LX L105][lx-h-curves], [HC L49][hc-acpi-curves] | cross-checked | absent | only if present |
+| `0x00110032` | Mid fan curve (per mode) | [GH L102][gh-acpi-curve], [LX L105][lx-h-curves], [HC L49][hc-acpi-curves] | cross-checked | absent | only if present |
 | `0x00110026` | CPU fan floor | [GH L104, L668-L676][gh-acpi-floor] | single source | absent | context |
 | `0x00110027` | GPU fan floor | [GH L105][gh-acpi-floor] | single source | absent | context |
 | `0x00120057` | Battery charge limit | [GH L85][gh-acpi-85], [LX L122-L123][lx-h-rsoc], [HC L51][hc-acpi-51] | cross-checked | Present; reads 0x01880000 even after G-Helper set **80 % (accepted: "BatteryLimit = 80 : OK")** → **write-only** | Phase 4 Battery Care |
@@ -137,7 +137,7 @@ These are hypotheses for Phase 4. Each one is tested in dry-run on Bradley's All
 ### 6.3 Fan curves
 
 - Reply layout: 8 temperatures (°C) followed by 8 duty percentages ([G-Helper L605-L633][gh-acpi-setcurve], [Linux L3604-L3616][lx-wmi-curve]).
-- The read argument is the mode, **with 1 and 2 swapped**: 0 = Balanced, 1 = Silent, 2 = Turbo ([G-Helper L635-L666][gh-acpi-curve], [Linux L3618-L3647][lx-wmi-curve]). The Probe reads all three; the public scan has only mode 0.
+- The read argument is the mode, **with 1 and 2 swapped**: 0 = Balanced, 1 = Silent, 2 = Turbo ([G-Helper L635-L666][gh-acpi-curve], [Linux L3618-L3647][lx-wmi-curve]). The Probe reads all three modes for every fan-curve ID (CPU, GPU and mid); the public scan has only mode 0.
 - Phase 4 rule: a custom curve may never be lower than the factory curve for the same mode at any temperature, temperatures must rise, and duty stays within 0–100 %.
 
 ### 6.4 Battery Care (charge limit)
@@ -200,7 +200,7 @@ All read-only in Phase 1, using documented APIs:
 
 ## 10. What the Probe does and never does
 
-**Does (read-only):** reads device identity; opens ATKACPI (read-only handle first, G-Helper's read/write *handle* flags only if refused; opening a handle changes nothing); sends **DSTS reads** for the 26 catalogued IDs above, and the fan curves for 3 modes each; lists the method signatures of ASUS WMI classes in `root\wmi` (definitions only); lists ASUS/AMD/Xbox service and process **names**; reads DXGI adapters, the video driver, ADLX file presence, power state and plan, and the Full Screen Experience state. It then saves `Documents\Ally Tuner\probe-<date>-<time>.txt`.
+**Does (read-only):** reads device identity; opens ATKACPI (read-only handle first, G-Helper's read/write *handle* flags only if refused; opening a handle changes nothing); sends **DSTS reads** for the 26 catalogued IDs above, and every fan curve (CPU, GPU and mid) for 3 modes each; lists the method signatures of ASUS WMI classes in `root\wmi` (definitions only); lists ASUS/AMD/Xbox service and process **names**; reads DXGI adapters, the video driver, ADLX file presence, power state and plan, and the Full Screen Experience state. It then saves `Documents\Ally Tuner\probe-<date>-<time>.txt`.
 
 **Never:** sends DEVS/INIT, invokes a WMI method, writes the registry or a power setting, stops a service, or sends ASUS calls on a machine whose manufacturer is not ASUS. Reports contain no user name, PC name, serial number or file path.
 
