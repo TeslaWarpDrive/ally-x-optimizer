@@ -199,4 +199,41 @@ public sealed partial class HomePage : Page
         DiagnosticsExporter.OpenFolder(AppServices.ReportsDirectory);
 
     private void OpenProbeButton_Click(object sender, RoutedEventArgs e) => App.Shell?.ShowSection("probe");
+
+    /// <summary>
+    /// The one-click setup (Phase 6): reads everything fresh (including AMD settings, as part of this explicit action),
+    /// plans every step, shows one confirmation and runs it. A dry-run in this build.
+    /// </summary>
+    private async void RecommendedButton_Click(object sender, RoutedEventArgs e)
+    {
+        RecommendedButton.IsEnabled = false;
+        RecommendedStatus.Text = "Checking the current settings…";
+        try
+        {
+            var services = App.Services;
+            var plans = await Task.Run(() =>
+            {
+                services.AmdReader.Refresh();
+                services.TweakReader.Invalidate();
+                services.ControlReader.Invalidate();
+                return Core.Power.RecommendedSetup.Plan(services.Changes);
+            });
+            var records = await Safety.SafetyDialogs.ConfirmAndRunBatchAsync(XamlRoot, Core.Power.RecommendedSetup.Confirmation(plans), plans);
+            RecommendedStatus.Text = records.Count == 0
+                ? string.Empty
+                : services.Gate.EverythingIsDryRun
+                    ? $"Simulated {records.Count} step(s). Nothing changed; each step is in the change log."
+                    : $"Applied {records.Count} step(s). Each is in the change log, where it can be undone.";
+            Safety.SettingCards.UpdateRestartOffer(RestartInfoBar);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Error("The recommended setup failed.", ex);
+            RecommendedStatus.Text = "Something went wrong. Details are in the log.";
+        }
+        finally
+        {
+            RecommendedButton.IsEnabled = true;
+        }
+    }
 }

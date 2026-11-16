@@ -22,6 +22,7 @@ This document is the source of truth for every hardware ID, method, buffer layou
 14. [Windows tweaks (Phase 3)](#14-windows-tweaks-phase-3)
 15. [ASUS and power controls (Phase 4)](#15-asus-and-power-controls-phase-4)
 16. [AMD graphics features (Phase 5)](#16-amd-graphics-features-phase-5)
+17. [Recommended Plugged-In Setup (Phase 6)](#17-recommended-plugged-in-setup-phase-6)
 
 ---
 
@@ -454,4 +455,23 @@ Rules:
 - **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first.
 - **HYPR-RX, FSR and Auto SR** are not app-controllable. The page shows where each is set (AMD Software, in-game, Windows Settings).
 - Per-game AMD settings are part of the per-game-profile fast follow.
+
+## 17. Recommended Plugged-In Setup (Phase 6)
+
+The brief's one-click setup (§11), built only from settings that already have their own sources, limits and checks (`Core/Power/RecommendedSetup`). It is one batch with one confirmation. Steps already in place are skipped, refused steps are listed with the reason, and every step is logged and can be undone from the change log. It is a dry-run in this build.
+
+| Brief §11 | Step |
+|---|---|
+| High sustained power profile (~30–35 W) | Performance Max: Turbo, SPL 35 W, sPPT 45 W, fPPT 55 W (§15) |
+| Aggressive fan curve | the firmware's Turbo curve on both fans |
+| Battery Care | 80 % |
+| Memory Integrity and Virtual Machine Platform off | both off (§14; restart) |
+| Game Mode and related Windows gaming settings | Game Mode, GPU scheduling, windowed-game optimizations on; power mode best performance when plugged in |
+| HYPR-RX + Anti-Lag where controllable | Radeon Anti-Lag on. HYPR-RX is not app-controllable, and the confirmation says where to turn it on (§16) |
+| VRAM 10 GB with restart prompt | 10 GB, from the device's own list (§15) |
+| Leave CPU Boost enabled | not touched, unless it is off, in which case it is set to Aggressive |
+
+Steps that need a restart run last, and the confirmation lists them. After live changes (none in this build), Home shows the restart offer.
+
+Pressing the button also reads the AMD settings, since that is an explicit action (§16).
 
