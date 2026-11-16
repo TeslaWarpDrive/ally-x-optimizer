@@ -247,4 +247,97 @@ public sealed class TweakSafetyTests : IDisposable
         Assert.Equal(["Memory integrity"], RestartTracker.Pending(Service.Journal.Records, Service.Find, _now.AddHours(-1)));
         Assert.Empty(RestartTracker.Pending(Service.Journal.Records, Service.Find, _now.AddMinutes(1))); // restarted since
     }
+
+    [Fact]
+    public async Task Undo_of_a_startup_change_restores_the_original_bytes()
+    {
+        byte[] original = [0x02, 0, 0, 0, 0x01, 0x02, 0x03, 0x04, 0, 0, 0, 0];
+        Facts = Facts with { StartupEntries = [new StartupEntry(StartupScope.UserRun, "Tool", @"C:\Tool.exe", original)] };
+        Reader.Invalidate();
+
+        var off = await Run(Service.Plan(StartupApps.Id(StartupScope.UserRun, "Tool"), 0));
+        Assert.Equal("020000000102030400000000", off.BeforeRaw);
+
+        var undo = Service.PlanUndo(off).Plan!;
+        Assert.Equal(off.BeforeRaw, undo.RestoreRaw);
+        var undone = await Run(undo);
+        Assert.Contains(@"Would set HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Tool to 02 00 00 00 01 02 03 04 00 00 00 00 (REG_BINARY).", undone.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Undo_of_a_startup_app_without_a_marker_deletes_the_marker_again()
+    {
+        var off = await Run(Service.Plan(StartupApps.Id(StartupScope.UserRun, "Discord"), 0));
+        Assert.Equal(StartupApps.NoMarker, off.BeforeRaw);
+        var undone = await Run(Service.PlanUndo(off).Plan!);
+        Assert.Contains(@"Would delete HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Discord, so it has no marker again, as before.", undone.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_live_undo_hands_the_original_bytes_to_the_writer()
+    {
+        _settings = AppSettings.Defaults with { DryRunMode = false, LiveSettingIds = [WindowsTweaks.GameModeId] };
+        Rebuild(liveWritesInThisBuild: true);
+        var record = await Run(Service.Plan(WindowsTweaks.GameModeId, 1));
+        Assert.Null(Writer.RestoreRaws[^1]);
+        await Run(Service.PlanUndo(record).Plan! with { RestoreRaw = "raw" });
+        Assert.Equal("raw", Writer.RestoreRaws[^1]);
+    }
+
+    [Fact]
+    public void A_tweak_with_an_unknown_value_is_refused()
+    {
+        Facts = Facts with
+        {
+            HwSchMode = 7,
+            StartupEntries = [new StartupEntry(StartupScope.UserRun, "Odd", @"C:\Odd.exe", [0x06, 0])],
+        };
+        Reader.Invalidate();
+
+        var hags = Service.Plan(WindowsTweaks.GpuSchedulingId, 1);
+        Assert.False(hags.CanProceed);
+        Assert.Equal(TweakState.UnknownValueReason, hags.Guard.Note);
+        Assert.False(Service.Plan(StartupApps.Id(StartupScope.UserRun, "Odd"), 1).CanProceed);
+    }
+
+    [Fact]
+    public void Tweaks_never_point_to_a_reset_that_does_not_cover_them()
+    {
+        Assert.All(WindowsTweaks.All, s => Assert.DoesNotContain("use Reset to Safe Defaults instead", s.UndoAdvice, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("does not cover it", WindowsTweaks.GameMode.UndoAdvice, StringComparison.Ordinal);
+        Assert.Contains("Reset to Safe Defaults", TunableSettings.SustainedPower.UndoAdvice, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Batch_confirmations_say_how_to_undo()
+    {
+        var plans = Service.PlanRecommended(WindowsTweaks.All);
+        var text = ConfirmationText.ForBatch("Apply recommended Windows settings", "Apply", "Simulate", plans, [], "Nothing.");
+        Assert.Equal("Each step is recorded in the change log. To undo, use Undo on that step in the change log.", text.Lines[^1]);
+
+        var spl = new SafetyFixture();
+        try
+        {
+            var mixed = ConfirmationText.BatchUndoLine([spl.Service.Plan(TunableSettings.SustainedPowerId, 30), spl.Service.Plan(TunableSettings.PerformanceModeId, 1)]);
+            Assert.Contains("except: Sustained power limit (SPL)", mixed, StringComparison.Ordinal);
+        }
+        finally
+        {
+            spl.Dispose();
+        }
+    }
+
+    [Fact]
+    public void The_recommended_summary_says_what_was_refused_and_why()
+    {
+        Facts = Facts with { MemoryIntegrityLocked = 1 };
+        Reader.Invalidate();
+
+        var overview = RecommendedOverview.Build(Service, WindowsTweaks.All);
+        Assert.Equal(4, overview.Plans.Count);
+        var refused = Assert.Single(overview.Refused);
+        Assert.Equal(WindowsTweaks.MemoryIntegrityId, refused.Setting.Id);
+        Assert.Contains(WindowsTweaks.GpuScheduling, overview.AlreadyThere);
+        Assert.Contains("1 differ but cannot be changed here: Memory integrity: Memory integrity is locked on", overview.Summary, StringComparison.Ordinal);
+    }
 }

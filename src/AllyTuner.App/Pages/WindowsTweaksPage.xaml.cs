@@ -42,7 +42,7 @@ public sealed partial class WindowsTweaksPage : Page
             var (facts, recommended) = await Task.Run(() =>
             {
                 var f = services.TweakReader.Facts;
-                return (f, services.Changes.PlanRecommended(WindowsTweaks.All));
+                return (f, RecommendedOverview.Build(services.Changes, WindowsTweaks.All));
             });
 
             ShowRecommended(recommended);
@@ -61,12 +61,10 @@ public sealed partial class WindowsTweaksPage : Page
         }
     }
 
-    private void ShowRecommended(IReadOnlyList<ChangePlan> plans)
+    private void ShowRecommended(RecommendedOverview overview)
     {
-        RecommendedSummary.Text = plans.Count == 0
-            ? "Everything that can be changed here is already at the recommended setting."
-            : $"{plans.Count} setting(s) differ from the recommendation: {string.Join(", ", plans.Select(p => p.Setting.Name))}. You see every step before anything happens.";
-        ApplyRecommendedButton.IsEnabled = plans.Count > 0;
+        RecommendedSummary.Text = overview.Summary;
+        ApplyRecommendedButton.IsEnabled = overview.Plans.Count > 0;
     }
 
     private void ShowRestart()
@@ -144,7 +142,7 @@ public sealed partial class WindowsTweaksPage : Page
 
         AddDetail(text, setting.Group == WindowsTweaks.Group ? setting.Description : null);
         AddDetail(text, state.Note);
-        if (state.Unavailable is { } why)
+        if (state.BlockReason is { } why)
         {
             text.Children.Add(new TextBlock
             {
@@ -168,7 +166,7 @@ public sealed partial class WindowsTweaksPage : Page
                 Tag = new ChangeRequest(setting.Id, choice.Value),
                 Style = (Style)AppResources["TouchButtonStyle"],
                 MinWidth = 200,
-                IsEnabled = state.Unavailable is null,
+                IsEnabled = state.BlockReason is null,
             };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"{Verb(choice).TrimEnd('…')} {setting.Name}");
             button.Click += Change_Click;

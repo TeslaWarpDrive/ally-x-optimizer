@@ -9,7 +9,11 @@ public sealed record WriteResult(bool Succeeded, string Detail);
 /// <summary>Writes one setting to the device. Called only for changes the <see cref="WriteGate"/> made live.</summary>
 public interface ISettingWriter
 {
-    Task<WriteResult> WriteAsync(SettingDefinition setting, int value, CancellationToken cancellationToken = default);
+    /// <param name="restoreRaw">
+    /// For an undo, the exact stored form captured before the original change (see <see cref="IWriteDescriber.CaptureRaw"/>),
+    /// so the writer can put back precisely what was there. Null for ordinary changes.
+    /// </param>
+    Task<WriteResult> WriteAsync(SettingDefinition setting, int value, string? restoreRaw, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Reads a setting's current value, for settings that can be read back. Null when it cannot.</summary>
@@ -26,6 +30,15 @@ public interface IWriteDescriber
 {
     /// <summary>Plain text such as "set HKCU\...\AutoGameModeEnabled to 1 (REG_DWORD)", or null when unknown.</summary>
     string? DescribeWrite(SettingDefinition setting, int value);
+
+    /// <summary>
+    /// The setting's exact stored form now (for example the raw StartupApproved bytes), recorded with each change so
+    /// Undo can put back precisely that. Null when the setting value alone is enough to restore it.
+    /// </summary>
+    string? CaptureRaw(SettingDefinition setting) => null;
+
+    /// <summary>The write that restores <paramref name="raw"/> (captured earlier) for <paramref name="value"/>.</summary>
+    string? DescribeRestore(SettingDefinition setting, int value, string raw) => DescribeWrite(setting, value);
 }
 
 /// <summary>
@@ -36,7 +49,7 @@ public sealed class NoHardwareWriter : ISettingWriter
 {
     public static NoHardwareWriter Instance { get; } = new();
 
-    public Task<WriteResult> WriteAsync(SettingDefinition setting, int value, CancellationToken cancellationToken = default) =>
+    public Task<WriteResult> WriteAsync(SettingDefinition setting, int value, string? restoreRaw, CancellationToken cancellationToken = default) =>
         Task.FromResult(new WriteResult(false, "This build has no hardware write path."));
 }
 
@@ -119,7 +132,10 @@ public sealed class SafeChangeService
         var guard = UnavailableReason(setting) is { } reason
             ? new GuardResult(requested, null, GuardOutcome.Refused, reason)
             : ValueGuard.Check(setting, requested, source);
-        return new ChangePlan(setting, origin, guard, before, beforeSource, _gate.Decide(setting), source);
+        return new ChangePlan(setting, origin, guard, before, beforeSource, _gate.Decide(setting), source)
+        {
+            BeforeRaw = CaptureRaw(setting),
+        };
     }
 
     /// <summary>
@@ -176,6 +192,7 @@ public sealed class SafeChangeService
 
             var plan = Plan(setting, first.Before!.Value, ChangeOrigin.RestoreOriginal) with
             {
+                RestoreRaw = first.BeforeRaw,
                 Note = $"{setting.Format(first.Before)} is what it was before Ally Tuner first changed it ({first.Time.ToLocalTime():g}).",
             };
             if (plan.CanProceed && !plan.IsNoChange)
@@ -224,7 +241,7 @@ public sealed class SafeChangeService
         var setting = Find(record.SettingId)!;
         if (record.Before is { } before)
         {
-            return new UndoPlan(Plan(setting, before, ChangeOrigin.Undo) with { UndoOf = record.Id }, string.Empty);
+            return new UndoPlan(Plan(setting, before, ChangeOrigin.Undo) with { UndoOf = record.Id, RestoreRaw = record.BeforeRaw }, string.Empty);
         }
 
         return new UndoPlan(
@@ -240,7 +257,7 @@ public sealed class SafeChangeService
     public static string NoUndoReason(SettingDefinition setting)
     {
         ArgumentNullException.ThrowIfNull(setting);
-        return $"No undo for this change: the device cannot report {setting.Name}, and Ally Tuner had not set it before, so there is no earlier value to go back to. {setting.NoUndoAdvice}";
+        return $"No undo for this change: the device cannot report {setting.Name}, and Ally Tuner had not set it before, so there is no earlier value to go back to. {setting.UndoAdvice}";
     }
 
     /// <summary>Plans for every setting with a safe default. Settings without one are listed by <see cref="NotResetDirectly"/>.</summary>
@@ -289,7 +306,7 @@ public sealed class SafeChangeService
             return Record(plan, gate, ChangeOutcome.Refused, $"Refused: {setting.Name} {Words(plan)}.", why);
         }
 
-        var write = Describe(setting, plan.Guard.Value!.Value);
+        var write = Describe(setting, plan.Guard.Value!.Value, plan.RestoreRaw);
         var detail = JoinDetail(gate.Reason, plan.Guard.Outcome == GuardOutcome.Clamped ? plan.Guard.Note : null, plan.Note,
             by == ConfirmedBy.ReApplyPolicy ? "Re-applied by the override policy (a value you confirmed earlier)." : null,
             write is null ? null : (gate.IsDryRun ? $"Would {write}." : $"Writes: {write}."));
@@ -302,7 +319,7 @@ public sealed class SafeChangeService
         WriteResult result;
         try
         {
-            result = await _writer.WriteAsync(setting, plan.Guard.Value!.Value, cancellationToken).ConfigureAwait(false);
+            result = await _writer.WriteAsync(setting, plan.Guard.Value!.Value, plan.RestoreRaw, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -315,15 +332,28 @@ public sealed class SafeChangeService
             : Record(plan, gate, ChangeOutcome.Failed, $"Failed to set {setting.Name} {Words(plan)}.", JoinDetail(detail, result.Detail));
     }
 
-    private string? Describe(SettingDefinition setting, int value)
+    private string? Describe(SettingDefinition setting, int value, string? restoreRaw)
     {
         try
         {
-            return _describer?.DescribeWrite(setting, value);
+            return restoreRaw is null ? _describer?.DescribeWrite(setting, value) : _describer?.DescribeRestore(setting, value, restoreRaw);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.Warn($"Could not describe the write for {setting.Name}.", ex);
+            return null;
+        }
+    }
+
+    private string? CaptureRaw(SettingDefinition setting)
+    {
+        try
+        {
+            return _describer?.CaptureRaw(setting);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warn($"Could not capture the stored form of {setting.Name}.", ex);
             return null;
         }
     }
@@ -383,6 +413,7 @@ public sealed class SafeChangeService
             Summary = summary,
             Detail = detail,
             UndoOf = plan.UndoOf,
+            BeforeRaw = plan.BeforeRaw,
         };
 
         _journal.Add(record);

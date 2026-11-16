@@ -27,9 +27,9 @@ public sealed record SetRegistryBinary(string Key, string Name, IReadOnlyList<by
     public override string Describe() => $@"set {Key}\{Name} to {string.Join(' ', Value.Select(b => b.ToString("X2", CultureInfo.InvariantCulture)))} (REG_BINARY)";
 }
 
-public sealed record DeleteRegistryValue(string Key, string Name) : TweakOperation
+public sealed record DeleteRegistryValue(string Key, string Name, string Why = "so Windows uses its default") : TweakOperation
 {
-    public override string Describe() => $@"delete {Key}\{Name}, so Windows uses its default";
+    public override string Describe() => $@"delete {Key}\{Name}, {Why}";
 }
 
 /// <summary>Turns a Windows optional feature on or off with DISM (a restart finishes it).</summary>

@@ -38,10 +38,11 @@ public class StartupAppsTests
     [InlineData(null, 1)]
     [InlineData(new byte[0], 1)]
     [InlineData(new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 1)]
-    [InlineData(new byte[] { 0x06, 0, 0, 0 }, 1)]
     [InlineData(new byte[] { 0x03, 0, 0, 0, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x01 }, 0)]
-    [InlineData(new byte[] { 0x07 }, 0)]
-    public void On_or_off_follows_the_first_byte(byte[]? approved, int expected)
+    [InlineData(new byte[] { 0x06, 0, 0, 0 }, null)] // disputed: Greenshot says on, BCU says off
+    [InlineData(new byte[] { 0x07 }, null)]
+    [InlineData(new byte[] { 0x01 }, null)]
+    public void On_or_off_follows_the_first_byte_only_where_the_sources_agree(byte[]? approved, int? expected)
     {
         Assert.Equal(expected, StartupApps.IsOn(Entry(approved)));
     }
@@ -92,6 +93,34 @@ public class StartupAppsTests
         Assert.Contains("ASUS or AMD", StartupApps.VendorNote(asus), StringComparison.Ordinal);
         Assert.Equal(string.Empty, StartupApps.VendorNote(Entry(null)));
         Assert.Null(StartupApps.Protected(Entry(null)));
+    }
+
+    [Fact]
+    public void A_disputed_marker_is_unknown_and_explains_the_disagreement()
+    {
+        var state = StartupApps.Interpret(Entry([0x06, 0]));
+        Assert.Null(state.Value);
+        Assert.Contains("0x06", state.Note, StringComparison.Ordinal);
+        Assert.Contains("Greenshot", state.Note, StringComparison.Ordinal);
+        Assert.Equal(TweakState.UnknownValueReason, state.BlockReason);
+    }
+
+    [Fact]
+    public void Capture_and_restore_put_back_exactly_what_was_there()
+    {
+        byte[] original = [0x03, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x01];
+        var raw = StartupApps.CaptureRaw(Entry(original));
+        Assert.Equal("03000000AABBCCDD11223301", raw);
+        Assert.Equal(StartupApps.NoMarker, StartupApps.CaptureRaw(Entry(null)));
+
+        Assert.Equal(@"set HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Discord to 03 00 00 00 AA BB CC DD 11 22 33 01 (REG_BINARY)",
+            StartupApps.RestoreRecipe(StartupScope.UserRun, "Discord", 0, raw).Describe());
+        Assert.Equal(@"delete HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run\Discord, so it has no marker again, as before",
+            StartupApps.RestoreRecipe(StartupScope.UserRun, "Discord", 1, StartupApps.NoMarker).Describe());
+
+        // A captured form that does not match the value falls back to the plain marker.
+        Assert.Equal(StartupApps.Recipe(StartupScope.UserRun, "Discord", 1).Describe(), StartupApps.RestoreRecipe(StartupScope.UserRun, "Discord", 1, raw).Describe());
+        Assert.Equal(StartupApps.Recipe(StartupScope.UserRun, "Discord", 0).Describe(), StartupApps.RestoreRecipe(StartupScope.UserRun, "Discord", 0, "not hex").Describe());
     }
 
     [Fact]

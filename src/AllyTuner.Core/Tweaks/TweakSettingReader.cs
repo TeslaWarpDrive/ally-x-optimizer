@@ -75,7 +75,28 @@ public sealed class TweakSettingReader : ISettingReader, IWriteDescriber
 
     public int? TryRead(SettingDefinition setting) => State(setting).Value;
 
-    public string? UnavailableReason(SettingDefinition setting) => State(setting).Unavailable;
+    /// <summary>Locked, missing, or an unknown current value (Undo would have nothing to go back to).</summary>
+    public string? UnavailableReason(SettingDefinition setting) => IsTweak(setting) ? State(setting).BlockReason : null;
+
+    public string? CaptureRaw(SettingDefinition setting)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        return StartupApps.TryParseId(setting.Id, out var scope, out var name)
+            && Facts.StartupEntries.FirstOrDefault(e => e.Scope == scope && e.Name == name) is { } entry
+                ? StartupApps.CaptureRaw(entry)
+                : null;
+    }
+
+    public string? DescribeRestore(SettingDefinition setting, int value, string raw)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        return StartupApps.TryParseId(setting.Id, out var scope, out var name)
+            ? StartupApps.RestoreRecipe(scope, name, value, raw).Describe()
+            : DescribeWrite(setting, value);
+    }
+
+    private static bool IsTweak(SettingDefinition setting) =>
+        WindowsTweaks.ById(setting.Id) is not null || StartupApps.TryParseId(setting.Id, out _, out _);
 
     public string? DescribeWrite(SettingDefinition setting, int value)
     {

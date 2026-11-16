@@ -21,6 +21,12 @@ public sealed record ChangePlan(
     /// <summary>Extra context for the confirmation, for example why undo uses the safe default.</summary>
     public string? Note { get; init; }
 
+    /// <summary>The setting's exact stored form before this change (see <see cref="IWriteDescriber.CaptureRaw"/>).</summary>
+    public string? BeforeRaw { get; init; }
+
+    /// <summary>For undo and restore: the stored form to put back exactly, captured before the original change.</summary>
+    public string? RestoreRaw { get; init; }
+
     public bool CanProceed => Guard.CanProceed;
 
     /// <summary>True when the setting is known to have this value already.</summary>
@@ -197,7 +203,7 @@ public sealed record ConfirmationText(
             lines.Add(dryRun
                 ? "Dry-run: nothing on the device changes. The change log records what would have happened."
                 : "This changes the device now.");
-            lines.Add("Each step is recorded in the change log.");
+            lines.Add(BatchUndoLine(plans.Where(p => p.CanProceed).ToList()));
         }
 
         return new ConfirmationText(
@@ -207,6 +213,16 @@ public sealed record ConfirmationText(
             "Cancel",
             dryRun,
             false);
+    }
+
+    /// <summary>How the steps of a batch can be undone, naming any that cannot.</summary>
+    public static string BatchUndoLine(IReadOnlyList<ChangePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        var noUndo = plans.Where(p => !p.UndoWillBeAvailable).Select(p => p.Setting.Name).ToList();
+        return noUndo.Count == 0
+            ? "Each step is recorded in the change log. To undo, use Undo on that step in the change log."
+            : $"Each step is recorded in the change log, where Undo reverses it, except: {string.Join(", ", noUndo)} (no earlier value is known).";
     }
 
     /// <summary>Call only after the person agreed to <see cref="ForReset"/>. Refused plans are left out.</summary>

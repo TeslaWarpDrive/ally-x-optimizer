@@ -25,13 +25,17 @@ public static class StartupApps
     /// <summary>Written to turn an app back on (BCU NewStartupDisable.cs #L31-L35).</summary>
     public static IReadOnlyList<byte> EnabledValue { get; } = [0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
+    /// <summary>The stored form of "no StartupApproved value" in <see cref="CaptureRaw"/>.</summary>
+    public const string NoMarker = "none";
+
     private static readonly string[] Sources =
     [
         MsRunKeys,
         BcuStartupDisable + "#L18-L35",
+        BcuStartupDisable + "#L72-L80",
         BcuStartupDisable + "#L90-L115",
         GreenshotStartup + "#L40-L49",
-        GreenshotStartup + "#L278-L286",
+        GreenshotStartup + "#L278-L285",
     ];
 
     public static string Id(StartupScope scope, string name)
@@ -75,17 +79,22 @@ public static class StartupApps
     public static SettingDefinition? Resolve(string id) =>
         TryParseId(id, out var scope, out var name) ? Definition(scope, name) : null;
 
-    /// <summary>1 when Windows starts it, 0 when it is switched off, null when the stored marker is not one Ally Tuner knows.</summary>
-    public static int? IsOn(StartupEntry entry)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-        if (entry.Approved is not { Count: > 0 } approved)
-        {
-            return 1; // no StartupApproved value: Windows starts it
-        }
+    /// <summary>
+    /// 1 when Windows starts it, 0 when it is switched off, null when the sources disagree about its marker.
+    /// Both sources agree that no value means on (BCU #L72-L80, Greenshot #L278-L285), that 0x02 means on and that
+    /// 0x03 means off (BCU writes exactly these, #L22-L35). Other markers are disputed: Greenshot reads every even
+    /// first byte (2, 6) as on and odd (3, 7) as off (#L279), but BCU treats every marker except 0x02 as off
+    /// (#L78-L80). Those stay unknown, so Ally Tuner does not change them.
+    /// </summary>
+    public static int? IsOn(StartupEntry entry) => IsOn(entry?.Approved);
 
-        return (approved[0] & 1) == 0 ? 1 : 0; // even (2, 6) = on, odd (3, 7) = off (Greenshot #L278-L286)
-    }
+    public static int? IsOn(IReadOnlyList<byte>? approved) => approved switch
+    {
+        null or { Count: 0 } => 1,
+        [0x02, ..] => 1,
+        [0x03, ..] => 0,
+        _ => null,
+    };
 
     /// <summary>Why Ally Tuner will not switch this entry, or null.</summary>
     public static string? Protected(StartupEntry entry)
@@ -107,12 +116,56 @@ public static class StartupApps
             : string.Empty;
     }
 
-    public static TweakState Interpret(StartupEntry? entry) => entry is null
-        ? new TweakState(null, "This app is no longer set to start with Windows.", string.Empty)
-        : new TweakState(IsOn(entry), Protected(entry), VendorNote(entry));
+    public static TweakState Interpret(StartupEntry? entry)
+    {
+        if (entry is null)
+        {
+            return new TweakState(null, "This app is no longer set to start with Windows.", string.Empty);
+        }
+
+        var value = IsOn(entry);
+        var note = value is null
+            ? $"Its on/off marker is 0x{entry.Approved![0]:X2}, which the sources read differently (Greenshot: even = on; Bulk Crap Uninstaller: only 0x02 = on). {VendorNote(entry)}".Trim()
+            : VendorNote(entry);
+        return new TweakState(value, Protected(entry), note);
+    }
 
     public static TweakRecipe Recipe(StartupScope scope, string name, int value) =>
         new([new SetRegistryBinary(ApprovedKey(scope), name, value == 1 ? EnabledValue : DisabledValue)]);
+
+    /// <summary>The marker as stored now: hex bytes, or <see cref="NoMarker"/> when Windows has no value. Kept for undo.</summary>
+    public static string CaptureRaw(StartupEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Approved is { Count: > 0 } bytes ? Convert.ToHexString(bytes.ToArray()) : NoMarker;
+    }
+
+    /// <summary>
+    /// The write that puts back exactly what was there before: no value (deleted again) or the original bytes,
+    /// including whatever Windows stored after the first byte. Falls back to <see cref="Recipe"/> when the captured
+    /// form does not match the value being restored.
+    /// </summary>
+    public static TweakRecipe RestoreRecipe(StartupScope scope, string name, int value, string raw)
+    {
+        ArgumentNullException.ThrowIfNull(raw);
+        if (raw == NoMarker && value == 1)
+        {
+            return new([new DeleteRegistryValue(ApprovedKey(scope), name, "so it has no marker again, as before")]);
+        }
+
+        byte[]? bytes = null;
+        try
+        {
+            bytes = raw.Length is > 0 and <= 64 ? Convert.FromHexString(raw) : null;
+        }
+        catch (FormatException)
+        {
+        }
+
+        return bytes is not null && IsOn(bytes) == value
+            ? new([new SetRegistryBinary(ApprovedKey(scope), name, bytes)])
+            : Recipe(scope, name, value);
+    }
 
     /// <summary>The StartupApproved key for a scope (BCU #L90-L115, Greenshot #L40-L49: Run32 lives in the 64-bit view).</summary>
     public static string ApprovedKey(StartupScope scope) => scope switch

@@ -8,7 +8,14 @@ namespace AllyTuner.Core.Tweaks;
 /// <param name="Value">The setting value, or null when it could not be read or has an unexpected value.</param>
 /// <param name="Unavailable">Why it cannot be changed here, or null.</param>
 /// <param name="Note">Extra context, for example "Running now: yes".</param>
-public sealed record TweakState(int? Value, string? Unavailable, string Note);
+public sealed record TweakState(int? Value, string? Unavailable, string Note)
+{
+    public const string UnknownValueReason =
+        "Ally Tuner could not read its current value, so it will not change it: Undo would have nothing to go back to.";
+
+    /// <summary>Why it must not be changed: <see cref="Unavailable"/>, or an unknown current value.</summary>
+    public string? BlockReason => Unavailable ?? (Value is null ? UnknownValueReason : null);
+}
 
 /// <summary>
 /// The Windows tweaks from the brief (§5): Memory Integrity, Virtual Machine Platform, Game Mode, hardware-accelerated
@@ -35,6 +42,12 @@ public static class WindowsTweaks
 
     public const string Group = "windows";
 
+    /// <summary>
+    /// Failure key for the "running now" WMI read only. It is separate from <see cref="MemoryIntegrityId"/> so a failed
+    /// WMI query does not hide the registry setting.
+    /// </summary>
+    public const string MemoryIntegrityRunningReadKey = "windows.memory-integrity.running";
+
     public const string DeviceGuardHvciKey = @"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity";
     public const string GameBarKey = @"HKCU\Software\Microsoft\GameBar";
     public const string GraphicsDriversKey = @"HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers";
@@ -52,7 +65,7 @@ public static class WindowsTweaks
     public static SettingDefinition MemoryIntegrity { get; } = new(
         MemoryIntegrityId, "Memory integrity", string.Empty, ChangeRisk.NeedsRestart, ValueReadBack.Readable, [MsMemoryIntegrity])
     {
-        Choices = [new(NotSet, "Not set"), .. OffOn],
+        Choices = OffOn,
         Recommended = 0,
         Group = Group,
         IncludedInReset = false,
@@ -173,9 +186,8 @@ public static class WindowsTweaks
         ArgumentNullException.ThrowIfNull(facts);
         return setting.Id switch
         {
-            MemoryIntegrityId => Single(value == NotSet
-                ? new DeleteRegistryValue(DeviceGuardHvciKey, "Enabled")
-                : new SetRegistryDword(DeviceGuardHvciKey, "Enabled", value)),
+            // Microsoft documents Enabled = 1 (on) and 0 (off, used in its own recovery steps); deleting it is not documented.
+            MemoryIntegrityId => value is 0 or 1 ? Single(new SetRegistryDword(DeviceGuardHvciKey, "Enabled", value)) : null,
             VirtualMachinePlatformId => Single(new SetOptionalFeature(VirtualMachinePlatformFeature, value == 1)),
             GameModeId => Single(value == NotSet
                 ? new DeleteRegistryValue(GameBarKey, "AutoGameModeEnabled")
@@ -235,19 +247,31 @@ public static class WindowsTweaks
 
     private static TweakState MemoryIntegrityState(WindowsTweakFacts facts)
     {
-        var running = facts.MemoryIntegrityRunning switch
+        var runningRead = !facts.Failed.Contains(MemoryIntegrityRunningReadKey);
+        var running = (runningRead, facts.MemoryIntegrityRunning) switch
         {
-            true => "Running now: yes.",
-            false => "Running now: no.",
-            null => "Running now: unknown.",
+            (false, _) => "Running now: could not be read.",
+            (_, true) => "Running now: yes.",
+            (_, false) => "Running now: no.",
+            _ => "Running now: unknown.",
         };
-        var state = Toggle(facts.MemoryIntegrityEnabled, on: 1, off: 0, "Not set in the registry.");
-        var pending = (state.Value, facts.MemoryIntegrityRunning) is (1, false) or (0, true)
-            ? " A restart applies the stored setting."
-            : string.Empty;
+
         var unavailable = facts.MemoryIntegrityLocked == 1
             ? "Memory integrity is locked on by the firmware (UEFI lock), so Windows cannot turn it off from here."
             : null;
+
+        // Not stored in the registry: the current value is what Windows reports running. Changing it then writes
+        // Enabled = 0 or 1 explicitly (the values Microsoft documents), so Undo writes the documented value back too.
+        if (facts.MemoryIntegrityEnabled is null)
+        {
+            int? value = runningRead ? facts.MemoryIntegrityRunning switch { true => 1, false => 0, null => null } : null;
+            return new TweakState(value, unavailable, $"{running} Not set in the registry, so Windows' running state is used.");
+        }
+
+        var state = Toggle(facts.MemoryIntegrityEnabled, on: 1, off: 0, string.Empty);
+        var pending = runningRead && (state.Value, facts.MemoryIntegrityRunning) is (1, false) or (0, true)
+            ? " A restart applies the stored setting."
+            : string.Empty;
         return new TweakState(state.Value, unavailable, $"{running}{pending} {state.Note}".Trim());
     }
 
@@ -266,17 +290,30 @@ public static class WindowsTweaks
 
     private static TweakRecipe WindowedGamesRecipe(int value, string? current)
     {
-        var pairs = ParseDirectXSettings(current)
-            .Where(p => !p.Key.Equals(SwapEffectUpgradeKey, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        if (value != NotSet)
+        var updated = SetDirectXKey(ParseDirectXSettings(current), SwapEffectUpgradeKey,
+            value == NotSet ? null : value.ToString(CultureInfo.InvariantCulture));
+        return updated.Count == 0
+            ? Single(new DeleteRegistryValue(UserGpuPreferencesKey, "DirectXUserGlobalSettings"))
+            : Single(new SetRegistryString(UserGpuPreferencesKey, "DirectXUserGlobalSettings", FormatDirectXSettings(updated)));
+    }
+
+    /// <summary>
+    /// Changes only <paramref name="key"/> in the shared string: its value is replaced where it stands, it is appended
+    /// when missing, and with a null value only its own entries are removed. Every other entry keeps its place and text.
+    /// </summary>
+    public static IReadOnlyList<KeyValuePair<string, string>> SetDirectXKey(IReadOnlyList<KeyValuePair<string, string>> pairs, string key, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(pairs);
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        bool IsKey(KeyValuePair<string, string> p) => p.Key.Equals(key, StringComparison.OrdinalIgnoreCase);
+        if (value is null)
         {
-            pairs.Add(new KeyValuePair<string, string>(SwapEffectUpgradeKey, value.ToString(CultureInfo.InvariantCulture)));
+            return pairs.Where(p => !IsKey(p)).ToList();
         }
 
-        return pairs.Count == 0
-            ? Single(new DeleteRegistryValue(UserGpuPreferencesKey, "DirectXUserGlobalSettings"))
-            : Single(new SetRegistryString(UserGpuPreferencesKey, "DirectXUserGlobalSettings", FormatDirectXSettings(pairs)));
+        return pairs.Any(IsKey)
+            ? pairs.Select(p => IsKey(p) ? new KeyValuePair<string, string>(p.Key, value) : p).ToList()
+            : [.. pairs, new KeyValuePair<string, string>(key, value)];
     }
 
     private static TweakState PowerModeState(Guid? mode) => mode is not { } guid

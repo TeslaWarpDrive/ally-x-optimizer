@@ -47,7 +47,8 @@ public sealed class WindowsTweakFactsReader
         {
             MemoryIntegrityEnabled = Try(WindowsTweaks.MemoryIntegrityId, () => Dword(Registry.LocalMachine, Hklm(WindowsTweaks.DeviceGuardHvciKey), "Enabled")),
             MemoryIntegrityLocked = Try(WindowsTweaks.MemoryIntegrityId, () => Dword(Registry.LocalMachine, Hklm(WindowsTweaks.DeviceGuardHvciKey), "Locked")),
-            MemoryIntegrityRunning = Try(WindowsTweaks.MemoryIntegrityId, ReadMemoryIntegrityRunning),
+            // Its own failure key: a WMI problem must not hide the registry value above.
+            MemoryIntegrityRunning = Try(WindowsTweaks.MemoryIntegrityRunningReadKey, ReadMemoryIntegrityRunning),
             VirtualMachinePlatformState = Try(WindowsTweaks.VirtualMachinePlatformId, ReadVirtualMachinePlatformState),
             AutoGameModeEnabled = Try(WindowsTweaks.GameModeId, () => Dword(Registry.CurrentUser, Hkcu(WindowsTweaks.GameBarKey), "AutoGameModeEnabled")),
             HwSchMode = Try(WindowsTweaks.GpuSchedulingId, () => Dword(Registry.LocalMachine, Hklm(WindowsTweaks.GraphicsDriversKey), "HwSchMode")),

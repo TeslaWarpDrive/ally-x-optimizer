@@ -88,6 +88,9 @@ public sealed record ChangeRecord
     /// <summary>The record this change undid, for <see cref="ChangeOrigin.Undo"/>.</summary>
     public Guid? UndoOf { get; init; }
 
+    /// <summary>The setting's exact stored form before this change, when that matters for undo (startup-app markers).</summary>
+    public string? BeforeRaw { get; init; }
+
     /// <summary>True when the change could be undone from the log: it went through (simulated or applied).</summary>
     [JsonIgnore]
     public bool CanUndo => Outcome is ChangeOutcome.Simulated or ChangeOutcome.Applied && Value is not null;

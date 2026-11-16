@@ -71,13 +71,41 @@ public class WindowsTweaksTests
     [Theory]
     [InlineData(1, null, 1)]
     [InlineData(0, null, 0)]
-    [InlineData(null, null, WindowsTweaks.NotSet)]
     [InlineData(5, null, null)]
-    public void Memory_integrity_reads_the_registry_value(int? enabled, int? locked, int? expected)
+    [InlineData(null, true, 1)]   // not stored: Windows' running state is the current value
+    [InlineData(null, false, 0)]
+    [InlineData(null, null, null)]
+    public void Memory_integrity_reads_the_registry_value_or_the_running_state(int? enabled, bool? running, int? expected)
     {
-        var s = State(WindowsTweaks.MemoryIntegrity, new WindowsTweakFacts { MemoryIntegrityEnabled = enabled, MemoryIntegrityLocked = locked });
+        var s = State(WindowsTweaks.MemoryIntegrity, new WindowsTweakFacts { MemoryIntegrityEnabled = enabled, MemoryIntegrityRunning = running });
         Assert.Equal(expected, s.Value);
         Assert.Null(s.Unavailable);
+    }
+
+    [Fact]
+    public void Memory_integrity_offers_only_the_documented_values()
+    {
+        Assert.Equal([0, 1], WindowsTweaks.MemoryIntegrity.Choices!.Select(c => c.Value));
+        Assert.Null(WindowsTweaks.Recipe(WindowsTweaks.MemoryIntegrity, WindowsTweaks.NotSet, new WindowsTweakFacts()));
+    }
+
+    [Fact]
+    public void A_failed_running_read_does_not_hide_the_registry_setting()
+    {
+        var facts = new WindowsTweakFacts
+        {
+            MemoryIntegrityEnabled = 1,
+            Failed = new HashSet<string> { WindowsTweaks.MemoryIntegrityRunningReadKey },
+        };
+        var s = State(WindowsTweaks.MemoryIntegrity, facts);
+        Assert.Equal(1, s.Value);
+        Assert.StartsWith("Running now: could not be read.", s.Note, StringComparison.Ordinal);
+        Assert.Null(s.BlockReason);
+
+        // Not stored and the running state unreadable: unknown, so it cannot be changed.
+        var unknown = State(WindowsTweaks.MemoryIntegrity, facts with { MemoryIntegrityEnabled = null });
+        Assert.Null(unknown.Value);
+        Assert.Equal(TweakState.UnknownValueReason, unknown.BlockReason);
     }
 
     [Fact]
@@ -177,7 +205,7 @@ public class WindowsTweaksTests
         string Describe(SettingDefinition s, int v) => WindowsTweaks.Recipe(s, v, facts)!.Describe();
 
         Assert.Equal(@"set HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity\Enabled to 0 (REG_DWORD)", Describe(WindowsTweaks.MemoryIntegrity, 0));
-        Assert.Equal(@"delete HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity\Enabled, so Windows uses its default", Describe(WindowsTweaks.MemoryIntegrity, WindowsTweaks.NotSet));
+        Assert.Equal(@"set HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity\Enabled to 1 (REG_DWORD)", Describe(WindowsTweaks.MemoryIntegrity, 1));
         Assert.Equal("run dism.exe /Online /Disable-Feature /FeatureName:VirtualMachinePlatform /NoRestart", Describe(WindowsTweaks.VirtualMachinePlatform, 0));
         Assert.Equal("run dism.exe /Online /Enable-Feature /FeatureName:VirtualMachinePlatform /All /NoRestart", Describe(WindowsTweaks.VirtualMachinePlatform, 1));
         Assert.Equal(@"set HKCU\Software\Microsoft\GameBar\AutoGameModeEnabled to 1 (REG_DWORD)", Describe(WindowsTweaks.GameMode, 1));
@@ -193,7 +221,7 @@ public class WindowsTweaksTests
     public void Windowed_games_recipe_keeps_the_other_graphics_settings()
     {
         var facts = new WindowsTweakFacts { DirectXUserGlobalSettings = "AutoHDREnable=1;SwapEffectUpgradeEnable=0;VRROptimizeEnable=0;" };
-        Assert.Equal(@"set HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings to ""AutoHDREnable=1;VRROptimizeEnable=0;SwapEffectUpgradeEnable=1;"" (REG_SZ)",
+        Assert.Equal(@"set HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings to ""AutoHDREnable=1;SwapEffectUpgradeEnable=1;VRROptimizeEnable=0;"" (REG_SZ)",
             WindowsTweaks.Recipe(WindowsTweaks.WindowedGames, 1, facts)!.Describe());
         Assert.Equal(@"set HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings to ""AutoHDREnable=1;VRROptimizeEnable=0;"" (REG_SZ)",
             WindowsTweaks.Recipe(WindowsTweaks.WindowedGames, WindowsTweaks.NotSet, facts)!.Describe());
@@ -202,6 +230,17 @@ public class WindowsTweaksTests
         Assert.StartsWith(@"delete HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings", WindowsTweaks.Recipe(WindowsTweaks.WindowedGames, WindowsTweaks.NotSet, only)!.Describe(), StringComparison.Ordinal);
         Assert.Equal(@"set HKCU\Software\Microsoft\DirectX\UserGpuPreferences\DirectXUserGlobalSettings to ""SwapEffectUpgradeEnable=1;"" (REG_SZ)",
             WindowsTweaks.Recipe(WindowsTweaks.WindowedGames, 1, new WindowsTweakFacts())!.Describe());
+    }
+
+    [Fact]
+    public void Only_its_own_key_is_edited_in_place()
+    {
+        var pairs = WindowsTweaks.ParseDirectXSettings("A=1;SwapEffectUpgradeEnable=0;B=2;");
+        Assert.Equal("A=1;SwapEffectUpgradeEnable=1;B=2;", WindowsTweaks.FormatDirectXSettings(WindowsTweaks.SetDirectXKey(pairs, "SwapEffectUpgradeEnable", "1")));
+        Assert.Equal("A=1;B=2;", WindowsTweaks.FormatDirectXSettings(WindowsTweaks.SetDirectXKey(pairs, "SwapEffectUpgradeEnable", null)));
+        Assert.Equal("A=1;B=2;C=3;", WindowsTweaks.FormatDirectXSettings(WindowsTweaks.SetDirectXKey(WindowsTweaks.ParseDirectXSettings("A=1;B=2;"), "C", "3")));
+        // The key's original spelling is kept.
+        Assert.Equal("swapeffectupgradeenable=1;", WindowsTweaks.FormatDirectXSettings(WindowsTweaks.SetDirectXKey(WindowsTweaks.ParseDirectXSettings("swapeffectupgradeenable=0"), "SwapEffectUpgradeEnable", "1")));
     }
 
     [Fact]

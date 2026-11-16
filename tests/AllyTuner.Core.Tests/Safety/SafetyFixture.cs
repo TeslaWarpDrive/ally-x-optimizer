@@ -66,9 +66,12 @@ internal sealed class SafetyFixture : IDisposable
 
         public Func<SettingDefinition, int, WriteResult> Respond { get; set; } = (_, _) => new WriteResult(true, "ok");
 
-        public Task<WriteResult> WriteAsync(SettingDefinition setting, int value, CancellationToken cancellationToken = default)
+        public List<string?> RestoreRaws { get; } = [];
+
+        public Task<WriteResult> WriteAsync(SettingDefinition setting, int value, string? restoreRaw, CancellationToken cancellationToken = default)
         {
             Calls.Add((setting.Id, value));
+            RestoreRaws.Add(restoreRaw);
             return Task.FromResult(Respond(setting, value));
         }
     }

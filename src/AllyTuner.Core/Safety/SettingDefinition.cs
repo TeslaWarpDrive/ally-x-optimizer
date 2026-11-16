@@ -126,7 +126,14 @@ public sealed record SettingDefinition
     public string Group { get; init; } = string.Empty;
 
     /// <summary>What to do instead when a change cannot be undone (no earlier value and no safe default).</summary>
-    public string NoUndoAdvice { get; init; } = "Use Reset to Safe Defaults instead.";
+    public string? NoUndoAdvice { get; init; }
+
+    /// <summary>
+    /// <see cref="NoUndoAdvice"/>, or a default that only points to Reset to Safe Defaults when the reset covers this setting.
+    /// </summary>
+    public string UndoAdvice => NoUndoAdvice ?? (IncludedInReset
+        ? "Use Reset to Safe Defaults instead."
+        : "Set it back yourself where you changed it; Reset to Safe Defaults does not cover it.");
 
     /// <summary>The ASUS device ID this setting writes in Phase 4, if any. Live writes need it confirmed on the device.</summary>
     public uint? AsusDeviceId { get; init; }
