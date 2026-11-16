@@ -105,3 +105,11 @@ Everything here is a dry-run. Nothing on the device should change, and Armoury C
 7. **Profiles**: make a new profile, set it as the plugged-in profile and turn on auto-apply (it asks first). Unplug, then plug in: within about 5 s a banner says it was applied as a dry-run, and the change log shows the steps marked as applied automatically.
 8. Watched first live writes come later, one control at a time, in a separate build.
 
+## Phase 5 (AMD features), for the final Ally test
+
+1. **Graphics**: press *Read AMD settings*. This is the first time Ally Tuner calls AMD's driver interface. If the app closes here, send the app log; that points at the ADLX interop.
+2. The four cards (Anti-Lag, Radeon Super Resolution, Boost, Chill) show *Now:* values that match AMD Software: Adrenalin Edition's Gaming > Graphics tab.
+3. If Chill is on, *On…* for Anti-Lag is refused and the dialog asks to turn Chill off first.
+4. Simulate Anti-Lag on. The log shows `Would call IADLX3DAntiLag::SetEnabled(true)`, and AMD Software still shows it off.
+5. The guidance card explains HYPR-RX, FSR and Auto SR.
+

@@ -21,6 +21,7 @@ This document is the source of truth for every hardware ID, method, buffer layou
 13. [Bradley's Probe results (2026-11-15)](#13-bradleys-probe-results-2026-11-15)
 14. [Windows tweaks (Phase 3)](#14-windows-tweaks-phase-3)
 15. [ASUS and power controls (Phase 4)](#15-asus-and-power-controls-phase-4)
+16. [AMD graphics features (Phase 5)](#16-amd-graphics-features-phase-5)
 
 ---
 
@@ -185,7 +186,7 @@ Armoury Crate can override settings. The service and process names come from G-H
 
 - **ADLX** is AMD's supported API. Its runtime `amdadlx64.dll` ships with the Adrenalin driver ([ADLX.h L25][adlx-dll]). The Probe only checks that the file exists and reads its version; it does not load it.
 - Available in ADLX 2.0 ([headers][adlx]): Anti-Lag and Anti-Lag Next (`IADLX3DAntiLag`, `IADLX3DAntiLag1`), Radeon Super Resolution (global, via `IADLX3DSettingsServices1`), Radeon Boost, Radeon Chill, AMD Fluid Motion Frames (`IADLX3DSettingsServices2`), FSR (`IADLX3DSettingsServices3`).
-- **HYPR-RX has no ADLX interface** (none of the ADLX 2.0 headers mention it). The brief says "where controllable"; the honest options are (a) apply its parts one by one (Anti-Lag, RSR, Boost), clearly labelled as *not* HYPR-RX, or (b) guide Bradley to the toggle in AMD Software. Decision for Phase 5.
+- **HYPR-RX has no ADLX interface** (none of the ADLX 2.0 headers mention it). Phase 5 does both honest options: the controllable parts (Anti-Lag, RSR, Boost) are separate settings, never labelled HYPR-RX, and the page tells Bradley where the HYPR-RX toggle is in AMD Software (§16).
 - Documented conflicts to respect: Anti-Lag cannot run with Chill; RSR needs GPU scaling; on some GPUs RSR cannot run with Boost or Image Sharpening ([I3DSettings.h][adlx-3d]).
 - Auto SR is a Microsoft feature; researched in Phase 5.
 
@@ -434,4 +435,23 @@ Every control below goes through the safety framework. Changes are clamped, conf
 [lx-p4-acinit]: https://github.com/torvalds/linux/blob/fa2933aac170dd19c6a7f0d7b81a8f537e40915c/drivers/platform/x86/asus-armoury.c#L1012-L1026
 [ms-p4-write]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwriteacvalueindex
 [ms-p4-setactive]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetactivescheme
+
+## 16. AMD graphics features (Phase 5)
+
+Read through AMD's ADLX C interface (pinned headers, ADLX 2.0.0.125). The read calls only `IsSupported` and `IsEnabled`. Each change is confirmed, logged and reversible, and is a **dry-run** in this build. The change log records the ADLX call it would make, for example `Would call IADLX3DAntiLag::SetEnabled(true) for the GPU through ADLX.` A Core guard test fails if the Platform code calls any ADLX setter.
+
+| Feature | Reads (vtable slot) | Would call | Notes |
+|---|---|---|---|
+| Radeon Anti-Lag | `IADLX3DSettingsServices::GetAntiLag` (3) → IsSupported (3), IsEnabled (4) | `IADLX3DAntiLag::SetEnabled` | recommended on (brief §11); cannot run with Chill ([I3DSettings.h L75][adlx-3d]) |
+| Radeon Super Resolution | `GetRadeonSuperResolution` (14, global) | `IADLX3DRadeonSuperResolution::SetEnabled` | on some GPUs AMD turns Boost off ([L579][adlx-3d]); the confirmation says so |
+| Radeon Boost | `GetBoost` (5) | `IADLX3DBoost::SetEnabled` | cannot run with Chill |
+| Radeon Chill | `GetChill` (4) | `IADLX3DChill::SetEnabled` | cannot run with Anti-Lag or Boost ([L295][adlx-3d]) |
+
+Sequence: `ADLXInitialize(ADLX_FULL_VERSION)` → `IADLXSystem::GetGPUs` (slot 1; IADLXSystem has no Acquire/Release) → `IADLXGPUList::At_GPUList(0)` (slot 11) → `IADLXSystem::Get3DSettingsServices` (slot 7) → features → `Release` (slot 1) on everything acquired → `ADLXTerminate`. The slot numbers are counted from the C vtable structs in `ISystem.h` (L606-L627, L1195-L1210) and `I3DSettings.h` (L126-L137, L496-L512, L715-L730, L2353-L2367, L3457-L3479).
+
+Rules:
+- **Read only on request.** The Graphics page reads ADLX when *Read AMD settings* is pressed, and *Apply recommended* reads it as part of that action. Nothing reads it on a timer or at startup. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked.
+- **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first.
+- **HYPR-RX, FSR and Auto SR** are not app-controllable. The page shows where each is set (AMD Software, in-game, Windows Settings).
+- Per-game AMD settings are part of the per-game-profile fast follow.
 

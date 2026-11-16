@@ -15,7 +15,7 @@
         <TextBlock
             Style="{StaticResource BodyLargeTextStyle}"
             Foreground="{StaticResource AuroraMutedBrush}"
-            Text="GPU memory (VRAM). AMD graphics features come in a later phase." />
+            Text="GPU memory (VRAM) and AMD graphics features. Every change is confirmed, logged and reversible; in this build every change is a dry-run." />
       </StackPanel>
 
       <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" />

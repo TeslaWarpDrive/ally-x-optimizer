@@ -1,4 +1,5 @@
 using System.Reflection;
+using AllyTuner.Core.Amd;
 using AllyTuner.Core.Diagnostics;
 using AllyTuner.Core.Detection;
 using AllyTuner.Core.Logging;
@@ -37,13 +38,16 @@ public sealed class AppServices
         // The ASUS and power controls (Phase 4) are read with DSTS reads only, and only on a supported RC73XA.
         var deviceReader = new DeviceControlFactsReader(log, IsSupportedDevice);
         ControlReader = new PowerControlReader(deviceReader.Read, () => Settings, () => Journal.LastApplied(TunableSettings.PerformanceModeId), log);
+        // AMD features (Phase 5): read through ADLX only when the person asks (a button or Apply recommended).
+        AmdReader = new AmdSettingReader(() => AdlxReader.Read(log), log);
         Router = new SettingRouter(
             (PowerControlReader.Owns, ControlReader),
+            (AmdSettingReader.Owns, AmdReader),
             (s => s.Group is WindowsTweaks.Group or StartupApps.Group, TweakReader));
 
         // The only writer in this build cannot touch hardware; the gate keeps every change a dry-run anyway.
         Changes = new SafeChangeService(
-            [.. PowerControls.All, .. WindowsTweaks.All], Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource,
+            [.. PowerControls.All, .. AmdFeatures.All, .. WindowsTweaks.All], Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource,
             reader: Router, describer: Router, resolve: StartupApps.Resolve);
         Overrides = new OverrideMonitor(Changes);
 
@@ -78,6 +82,9 @@ public sealed class AppServices
 
     /// <summary>Reads the ASUS and power controls (VRAM, cores, CPU Boost, factory fan curves; cached briefly).</summary>
     public PowerControlReader ControlReader { get; }
+
+    /// <summary>AMD graphics features through ADLX (read only on request).</summary>
+    public AmdSettingReader AmdReader { get; }
 
     /// <summary>Sends each setting to the reader that owns it.</summary>
     public SettingRouter Router { get; }
