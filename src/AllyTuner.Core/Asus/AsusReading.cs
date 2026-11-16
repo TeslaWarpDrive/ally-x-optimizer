@@ -29,10 +29,19 @@ public sealed record AsusRawRead(
 
 /// <summary>
 /// One DSTS read, decoded against the catalog entry it belongs to.
-/// <see cref="Status"/> is null for fan curves: their reply is the curve itself, with no status word.
+/// <see cref="Status"/> is null for fan curves and fan floors: their reply is the data itself, with no status word.
 /// </summary>
 public sealed record AsusReading(AsusEndpoint Endpoint, AsusRawRead Raw, AsusPresence? Presence, AsusDeviceStatus? Status, string Description)
 {
+    /// <summary>
+    /// What the public RC73XA scan showed for this read. The scan has fan curves for mode 0 only, so the
+    /// mode-0 text is not repeated for modes 1 and 2.
+    /// </summary>
+    public string ExpectedFromPublicScan =>
+        Endpoint.Kind == AsusValueKind.FanCurve && Raw.Argument != 0 && Endpoint.PublicRc73xaEvidence != AsusEndpointCatalog.NotInPublicScan
+            ? "Not in the public RC73XA scan, which has mode 0 only."
+            : Endpoint.PublicRc73xaEvidence;
+
     public string ArgumentLabel => Endpoint.Kind == AsusValueKind.FanCurve
         ? Raw.Argument switch
         {
@@ -56,6 +65,8 @@ public sealed record AsusProbeFacts(
 /// <summary>Decodes raw DSTS reads. Pure logic, so it is unit-tested on the Mac.</summary>
 public static class AsusProbeInterpreter
 {
+    private const int ErrorInvalidFunction = 1;
+
     public static IReadOnlyList<AsusReading> Interpret(IEnumerable<AsusRawRead> reads)
     {
         ArgumentNullException.ThrowIfNull(reads);
@@ -112,7 +123,9 @@ public static class AsusProbeInterpreter
     {
         if (!raw.CallSucceeded)
         {
-            return new AsusReading(endpoint, raw, null, null, $"call failed (Windows error {raw.Win32Error.ToString(CultureInfo.InvariantCulture)})");
+            // On Bradley's Ally the driver fails with error 1 (ERROR_INVALID_FUNCTION) for IDs the model lacks.
+            var hint = raw.Win32Error == ErrorInvalidFunction ? "; on the RC73XA this happens for IDs the model does not have" : string.Empty;
+            return new AsusReading(endpoint, raw, null, null, $"call failed (Windows error {raw.Win32Error.ToString(CultureInfo.InvariantCulture)}{hint})");
         }
 
         var result = AsusAcpiProtocol.ReadResult(raw.Response);
@@ -124,6 +137,11 @@ public static class AsusProbeInterpreter
         if (endpoint.Kind == AsusValueKind.FanCurve)
         {
             return DecodeFanCurve(endpoint, raw, result.Value);
+        }
+
+        if (endpoint.Kind == AsusValueKind.FanFloor)
+        {
+            return DecodeFanFloor(endpoint, raw, result.Value);
         }
 
         var status = new AsusDeviceStatus(result.Value);
@@ -151,6 +169,24 @@ public static class AsusProbeInterpreter
             { IsEmpty: true } => new AsusReading(endpoint, raw, AsusPresence.NotPresent, null, "empty (all zero): no curve reported"),
             { IsPlausible: false } => new AsusReading(endpoint, raw, AsusPresence.Present, null, $"{curve} (does not look like a valid curve)"),
             _ => new AsusReading(endpoint, raw, AsusPresence.Present, null, curve.ToString()),
+        };
+    }
+
+    /// <summary>A fan-floor reply is 8 duty bytes with no status word, judged like a fan curve.</summary>
+    private static AsusReading DecodeFanFloor(AsusEndpoint endpoint, AsusRawRead raw, uint firstWord)
+    {
+        if (firstWord == AsusAcpiProtocol.UnsupportedResult)
+        {
+            return new AsusReading(endpoint, raw, AsusPresence.Unsupported, null, "not supported by this BIOS (0xFFFFFFFE)");
+        }
+
+        var floor = FanFloor.TryDecode(raw.Response);
+        return floor switch
+        {
+            null => new AsusReading(endpoint, raw, null, null, "reply too short for a fan floor"),
+            { IsEmpty: true } => new AsusReading(endpoint, raw, AsusPresence.NotPresent, null, "empty (all zero): no floor reported"),
+            { IsPlausible: false } => new AsusReading(endpoint, raw, AsusPresence.Present, null, $"{floor} (does not look like a valid floor)"),
+            _ => new AsusReading(endpoint, raw, AsusPresence.Present, null, $"floor {floor}"),
         };
     }
 

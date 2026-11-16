@@ -32,6 +32,14 @@ Double-click `AllyTuner-Setup-<version>.exe`. The admin prompt should say **Veri
 
 Upgrading: run a newer installer over the old one. Uninstall: Settings → Apps → Ally Tuner. Your logs are kept in `%LOCALAPPDATA%\AllyTuner`.
 
+## Phase 1 follow-up: re-check after the first reports
+
+The first two reports (2026-11-15) are reviewed; the results are in docs/RESEARCH.md §13. With the next build:
+
+1. **Run the probe on the desktop**, plugged in. *Key results* should say **Matches the reviewed results: yes**. If it says *no*, the lines under it say what changed (for example a new BIOS).
+2. **Run it inside the Xbox Full Screen Experience.** This is still unverified: *Xbox Full Screen Experience* should say it is on.
+3. **Send both reports** as before.
+
 ## Phase 1 checklist: hardware probe
 
 Plug the Ally in for this. Each run takes a few seconds and saves a report to `Documents\Ally Tuner`.

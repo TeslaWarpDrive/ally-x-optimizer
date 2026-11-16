@@ -48,6 +48,34 @@ public sealed record FanCurve(IReadOnlyList<FanCurvePoint> Points)
 }
 
 /// <summary>
+/// The firmware's minimum fan duty, as G-Helper reads it: 8 bytes with no status word, byte i being the floor
+/// duty (%) at 30 + 10 i °C (G-Helper GetFanFloor
+/// <see href="https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L668-L676"/>
+/// and its chart <see href="https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Fans.cs#L905-L908"/>).
+/// Single source.
+/// </summary>
+public sealed record FanFloor(IReadOnlyList<byte> DutyPercent)
+{
+    public const int PointCount = 8;
+    public const int FirstTemperatureC = 30;
+    public const int StepC = 10;
+
+    public bool IsEmpty => DutyPercent.All(d => d == 0);
+
+    public bool IsPlausible => !IsEmpty && DutyPercent.All(d => d <= 100);
+
+    public static int TemperatureAt(int index) => FirstTemperatureC + (index * StepC);
+
+    public static FanFloor? TryDecode(ReadOnlySpan<byte> response) =>
+        response.Length < PointCount ? null : new FanFloor(response[..PointCount].ToArray());
+
+    public override string ToString() =>
+        IsEmpty
+            ? "(empty)"
+            : string.Join(", ", DutyPercent.Select((d, i) => $"{TemperatureAt(i)}°C→{d}%"));
+}
+
+/// <summary>
 /// The VRAM endpoint (0x000600C4) reply, decoded exactly as G-Helper GetVramOptions / GetVramMem do
 /// (<see href="https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L830-L852"/>):
 /// <code>

@@ -1,6 +1,6 @@
 # Ally Tuner hardware research
 
-**Status (2026-11-15):** research done. **Nothing is confirmed on Bradley's Ally yet.** Every ASUS interface below stays *unconfirmed* until a Probe report from Bradley's ROG Xbox Ally X (RC73XA) matches it. Phase 1 code only **reads**.
+**Status (2026-11-15):** research done, and Bradley's first two Probe reports reviewed (§13). **18 of the 26 ASUS IDs are confirmed on Bradley's Ally** (BIOS RC73XA.319), 3 are absent and 5 are held back. The Xbox Full Screen Experience check is still unverified. Phase 1 code only **reads**.
 
 This document is the source of truth for every hardware ID, method, buffer layout and safe range Ally Tuner uses. Code comments link here and to the same pinned sources. No ACPI method ID, device ID or register is guessed: each one is cited, and anything not cited is not used.
 
@@ -18,6 +18,7 @@ This document is the source of truth for every hardware ID, method, buffer layou
 10. [What the Probe does and never does](#10-what-the-probe-does-and-never-does)
 11. [Questions Bradley's Probe report answers](#11-questions-bradleys-probe-report-answers)
 12. [Safety rules derived from this research](#12-safety-rules-derived-from-this-research)
+13. [Bradley's Probe results (2026-11-15)](#13-bradleys-probe-results-2026-11-15)
 
 ---
 
@@ -30,7 +31,8 @@ Each interface climbs this ladder. Phase 4 writes only to interfaces on the top 
 | **Single source** | One open-source implementation uses it. |
 | **Cross-checked** | Two or more independent projects (for example G-Helper and the Linux kernel) use the same ID for the same thing. |
 | **Public RC73XA evidence** | Another owner's ROG Xbox Ally X returned a sensible value for it (the G-Helper issue #4843 scans, §2). Useful for planning; **not** confirmation. |
-| **Confirmed on Bradley's Ally** | Bradley's Probe report matches. Recorded in code as `DeviceConfirmation.ConfirmedByProbe`, in a PR that quotes the report. **No endpoint is at this level yet.** |
+| **Confirmed on Bradley's Ally** | Bradley's Probe report matches. Recorded in code as `DeviceConfirmation.ConfirmedByProbe` (`BradleyAllyEvidence.cs`, which quotes the report). It proves the ID exists and reads as predicted, **not** that a write works. 18 endpoints are at this level (§13). |
+| *Absent on Bradley's Ally* | The ID is missing or the driver rejected the call (`DeviceConfirmation.AbsentOnDevice`). Nothing uses it. |
 
 ## 2. Sources
 
@@ -78,36 +80,36 @@ Armoury Crate, G-Helper and Handheld Companion all talk to the BIOS through the 
 
 ## 5. Endpoint table
 
-The same list is in code: `src/AllyTuner.Core/Asus/AsusEndpointCatalog.cs` (a unit test keeps this table and the code in sync). "Public scan" is what another owner's RC73XA returned (§2), **not** Bradley's device. Values are shown after clearing the presence bit.
+The same list is in code: `src/AllyTuner.Core/Asus/AsusEndpointCatalog.cs` (a unit test keeps this table and the code in sync). "Public scan" is what another owner's RC73XA returned (§2). The last column is Bradley's own Ally (§13): **confirmed**, *held* (matched, but held back on purpose) or *absent*. Values are shown after clearing the presence bit.
 
-| ID | What | Sources | Agreement | Public RC73XA scan | Planned use |
-|---|---|---|---|---|---|
-| `0x00120075` | Performance mode (thermal policy) | [GH L72][gh-acpi-72], [LX L76][lx-h-76], [HC L72][hc-acpi-72] | cross-checked | Present; reads **7** every time, even while G-Helper had set mode 2 → **read is not the current mode** | Phase 4 mode switch |
-| `0x001200A3` | SPL, sustained limit (PL1) | [GH L115][gh-acpi-ppt], [LX L109][lx-h-ppt], [HC L60][hc-acpi-ppt] | cross-checked | Present, reads **0** while G-Helper applied 13 W → **write-only** | Phase 4 power limits |
-| `0x001200A0` | sPPT, slow boost (PL2) | [GH L112][gh-acpi-ppt], [LX L108][lx-h-ppt], [HC L65][hc-acpi-ppt] | cross-checked | Present, reads 0 → write-only | Phase 4 |
-| `0x001200C1` | fPPT, fast boost (PL3) | [GH L126][gh-acpi-ppt], [LX L112][lx-h-ppt], [HC L70][hc-acpi-ppt] | cross-checked | Present, reads 0 → write-only | Phase 4 |
-| `0x001200B0` | APU sPPT (2022 models) | [GH L117][gh-acpi-ppt], [LX L110][lx-h-ppt] | cross-checked | Present, reads 0 | context only |
-| `0x001200B1` | Platform sPPT (2022 models) | [GH L118][gh-acpi-ppt], [LX L111][lx-h-ppt] | cross-checked | Present, reads 0 | context only |
-| `0x00120094` | CPU temperature (°C) | [GH L109][gh-acpi-temps], [GH HardwareControl L458][gh-hw-458] | single source | Present; 48–51 °C | status, overlay |
-| `0x00120097` | GPU temperature (G-Helper) / "DGPU_POWER_STATE" (Linux) | [GH L110][gh-acpi-temps], [LX L147][lx-h-147] | **sources disagree** | Present; 43–47 °C (looks like a temperature) | display only |
-| `0x00110013` | CPU fan speed (×100 rpm) | [GH L63][gh-acpi-fans], [GH ×100 L906-L907][gh-hw-906], [LX L100][lx-h-fans], [HC L53][hc-acpi-fans] | cross-checked | Present; 35–38 (≈3,500–3,800 rpm) | status |
-| `0x00110014` | GPU fan speed (×100 rpm) | [GH L64][gh-acpi-fans], [LX L101][lx-h-fans], [HC L54][hc-acpi-fans] | cross-checked | Present; 34–38 | status |
-| `0x00110031` | Mid fan speed | [GH L65][gh-acpi-fans], [LX L102][lx-h-fans], [HC L55][hc-acpi-fans] | cross-checked | absent | only if present |
-| `0x00110022` | CPU fan range | [GH L97][gh-acpi-devsfan], [HC L44][hc-acpi-devsfan] | cross-checked | Present; 0x9A | Phase 4 context |
-| `0x00110023` | GPU fan range | [GH L98][gh-acpi-devsfan], [HC L45][hc-acpi-devsfan] | cross-checked | Present; 0x8D | Phase 4 context |
-| `0x00110024` | CPU fan curve (per mode) | [GH L100, L635-L666][gh-acpi-curve], [LX L103][lx-h-curves], [LX asus-wmi.c L3604-L3647][lx-wmi-curve], [HC L47][hc-acpi-curves] | cross-checked | mode 0: 48,54,59,62,62,62,62,62 °C → 1,9,18,22,22,22,22,22 % | Phase 4 fan curves |
-| `0x00110025` | GPU fan curve (per mode) | [GH L101][gh-acpi-curve], [LX L104][lx-h-curves], [HC L48][hc-acpi-curves] | cross-checked | mode 0: same temps → 1,9,13,13,13,13,13,13 % | Phase 4 |
-| `0x00110032` | Mid fan curve (per mode) | [GH L102][gh-acpi-curve], [LX L105][lx-h-curves], [HC L49][hc-acpi-curves] | cross-checked | absent | only if present |
-| `0x00110026` | CPU fan floor | [GH L104, L668-L676][gh-acpi-floor] | single source | absent | context |
-| `0x00110027` | GPU fan floor | [GH L105][gh-acpi-floor] | single source | absent | context |
-| `0x00120057` | Battery charge limit | [GH L85][gh-acpi-85], [LX L122-L123][lx-h-rsoc], [HC L51][hc-acpi-51] | cross-checked | Present; reads 0x01880000 even after G-Helper set **80 % (accepted: "BatteryLimit = 80 : OK")** → **write-only** | Phase 4 Battery Care |
-| `0x0012006C` | Charger type (1 barrel, 2 USB-C) | [GH L58-L61][gh-acpi-charger], [LX L128-L129][lx-h-charge] | cross-checked | Present; 2 = USB-C | status |
-| `0x000600C4` | **VRAM allocation with option list** | [GH L137, L830-L857][gh-acpi-vram], [scan with VRAM][scan2] | single source (+ public RC73XA success) | Present; **Auto, 512 MB, 1–16 GB in 1 GB steps; current 4 GB**. The owner switched 4 GB ↔ 16 GB with G-Helper successfully | Phase 4 VRAM (8/10/12 GB) |
-| `0x000600C1` | APU memory (original Ally) | [GH L136, L813-L828][gh-acpi-apumem], [LX L145][lx-h-145], [LX asus-armoury.c L720-L760][lx-armoury-apumem] | cross-checked | absent | fallback only |
-| `0x001200D2` | **CPU core layout**, current (`0x0[E]0[P]`) | [GH L129, L859-L878][gh-acpi-cores] | single source | Present; **0x0503 = 3 P-cores + 5 E-cores** (matches Ryzen Z2 Extreme: 3 Zen 5 + 5 Zen 5c) | Phase 4 core config |
-| `0x001200D3` | CPU core layout, maximum | [GH L130][gh-acpi-cores] | single source | Present; 0x0503 | Phase 4 bound |
-| `0x001200D4` | CPU core layout, minimum | [GH L131][gh-acpi-cores], [GH Extra.cs L606-L611][gh-extra-cores] | single source | Present; 0x0001 = 1 P + 0 E | Phase 4 bound |
-| `0x001200E2` | MCU power-save (Ally controller MCU) | [LX L131-L132][lx-h-mcu] | single source | Present; 0, later 1 | context only |
+| ID | What | Sources | Agreement | Public RC73XA scan | Planned use | Bradley's Ally |
+|---|---|---|---|---|---|---|
+| `0x00120075` | Performance mode (thermal policy) | [GH L72][gh-acpi-72], [LX L76][lx-h-76], [HC L72][hc-acpi-72] | cross-checked | Present; reads **7** every time, even while G-Helper had set mode 2 → **read is not the current mode** | Phase 4 mode switch | **confirmed** |
+| `0x001200A3` | SPL, sustained limit (PL1) | [GH L115][gh-acpi-ppt], [LX L109][lx-h-ppt], [HC L60][hc-acpi-ppt] | cross-checked | Present, reads **0** while G-Helper applied 13 W → **write-only** | Phase 4 power limits | **confirmed** |
+| `0x001200A0` | sPPT, slow boost (PL2) | [GH L112][gh-acpi-ppt], [LX L108][lx-h-ppt], [HC L65][hc-acpi-ppt] | cross-checked | Present, reads 0 → write-only | Phase 4 | **confirmed** |
+| `0x001200C1` | fPPT, fast boost (PL3) | [GH L126][gh-acpi-ppt], [LX L112][lx-h-ppt], [HC L70][hc-acpi-ppt] | cross-checked | Present, reads 0 → write-only | Phase 4 | **confirmed** |
+| `0x001200B0` | APU sPPT (2022 models) | [GH L117][gh-acpi-ppt], [LX L110][lx-h-ppt] | cross-checked | Present, reads 0 | context only | *held* (no Ally source) |
+| `0x001200B1` | Platform sPPT (2022 models) | [GH L118][gh-acpi-ppt], [LX L111][lx-h-ppt] | cross-checked | Present, reads 0 | context only | *held* (no Ally source) |
+| `0x00120094` | CPU temperature (°C) | [GH L109][gh-acpi-temps], [GH HardwareControl L458][gh-hw-458] | single source | Present; 48–51 °C | status, overlay | **confirmed** |
+| `0x00120097` | GPU temperature (G-Helper) / "DGPU_POWER_STATE" (Linux) | [GH L110][gh-acpi-temps], [LX L147][lx-h-147] | **sources disagree** | Present; 43–47 °C (looks like a temperature) | display only | *held* (meaning disputed) |
+| `0x00110013` | CPU fan speed (×100 rpm) | [GH L63][gh-acpi-fans], [GH ×100 L906-L907][gh-hw-906], [LX L100][lx-h-fans], [HC L53][hc-acpi-fans] | cross-checked | Present; 35–38 (≈3,500–3,800 rpm) | status | **confirmed** |
+| `0x00110014` | GPU fan speed (×100 rpm) | [GH L64][gh-acpi-fans], [LX L101][lx-h-fans], [HC L54][hc-acpi-fans] | cross-checked | Present; 34–38 | status | **confirmed** |
+| `0x00110031` | Mid fan speed | [GH L65][gh-acpi-fans], [LX L102][lx-h-fans], [HC L55][hc-acpi-fans] | cross-checked | absent | only if present | *absent* (error 1) |
+| `0x00110022` | CPU fan range | [GH L97][gh-acpi-devsfan], [HC L44][hc-acpi-devsfan] | cross-checked | Present; 0x9A | Phase 4 context | **confirmed** |
+| `0x00110023` | GPU fan range | [GH L98][gh-acpi-devsfan], [HC L45][hc-acpi-devsfan] | cross-checked | Present; 0x8D | Phase 4 context | **confirmed** |
+| `0x00110024` | CPU fan curve (per mode) | [GH L100, L635-L666][gh-acpi-curve], [LX L103][lx-h-curves], [LX asus-wmi.c L3604-L3647][lx-wmi-curve], [HC L47][hc-acpi-curves] | cross-checked | mode 0: 48,54,59,62,62,62,62,62 °C → 1,9,18,22,22,22,22,22 % | Phase 4 fan curves | **confirmed** |
+| `0x00110025` | GPU fan curve (per mode) | [GH L101][gh-acpi-curve], [LX L104][lx-h-curves], [HC L48][hc-acpi-curves] | cross-checked | mode 0: same temps → 1,9,13,13,13,13,13,13 % | Phase 4 | **confirmed** |
+| `0x00110032` | Mid fan curve (per mode) | [GH L102][gh-acpi-curve], [LX L105][lx-h-curves], [HC L49][hc-acpi-curves] | cross-checked | absent | only if present | *absent* (error 1) |
+| `0x00110026` | CPU fan floor (8 duty bytes, 30–100 °C) | [GH L104, L668-L676][gh-acpi-floor], [GH Fans.cs L905-L908][gh-fans-floor] | single source | not in the scan | context | *held* (8 floor bytes, §13) |
+| `0x00110027` | GPU fan floor (8 duty bytes, 30–100 °C) | [GH L105][gh-acpi-floor], [GH Fans.cs L905-L908][gh-fans-floor] | single source | not in the scan | context | *held* (8 floor bytes, §13) |
+| `0x00120057` | Battery charge limit | [GH L85][gh-acpi-85], [LX L122-L123][lx-h-rsoc], [HC L51][hc-acpi-51] | cross-checked | Present; reads 0x01880000 even after G-Helper set **80 % (accepted: "BatteryLimit = 80 : OK")** → **write-only** | Phase 4 Battery Care | **confirmed** |
+| `0x0012006C` | Charger type (1 barrel, 2 USB-C) | [GH L58-L61][gh-acpi-charger], [LX L128-L129][lx-h-charge] | cross-checked | Present; 2 = USB-C | status | **confirmed** |
+| `0x000600C4` | **VRAM allocation with option list** | [GH L137, L830-L857][gh-acpi-vram], [scan with VRAM][scan2] | single source (+ public RC73XA success) | Present; **Auto, 512 MB, 1–16 GB in 1 GB steps; current 4 GB**. The owner switched 4 GB ↔ 16 GB with G-Helper successfully | Phase 4 VRAM (8/10/12 GB) | **confirmed** |
+| `0x000600C1` | APU memory (original Ally) | [GH L136, L813-L828][gh-acpi-apumem], [LX L145][lx-h-145], [LX asus-armoury.c L720-L760][lx-armoury-apumem] | cross-checked | absent | fallback only | *absent* (error 1) |
+| `0x001200D2` | **CPU core layout**, current (`0x0[E]0[P]`) | [GH L129, L859-L878][gh-acpi-cores] | single source | Present; **0x0503 = 3 P-cores + 5 E-cores** (matches Ryzen Z2 Extreme: 3 Zen 5 + 5 Zen 5c) | Phase 4 core config | **confirmed** |
+| `0x001200D3` | CPU core layout, maximum | [GH L130][gh-acpi-cores] | single source | Present; 0x0503 | Phase 4 bound | **confirmed** |
+| `0x001200D4` | CPU core layout, minimum | [GH L131][gh-acpi-cores], [GH Extra.cs L606-L611][gh-extra-cores] | single source | Present; 0x0001 = 1 P + 0 E | Phase 4 bound | **confirmed** |
+| `0x001200E2` | MCU power-save (Ally controller MCU) | [LX L131-L132][lx-h-mcu] | single source | Present; 0, later 1 | context only | **confirmed** |
 
 ## 6. Findings that shape Phase 4 (writes)
 
@@ -138,7 +140,8 @@ These are hypotheses for Phase 4. Each one is tested in dry-run on Bradley's All
 
 - Reply layout: 8 temperatures (°C) followed by 8 duty percentages ([G-Helper L605-L633][gh-acpi-setcurve], [Linux L3604-L3616][lx-wmi-curve]).
 - The read argument is the mode, **with 1 and 2 swapped**: 0 = Balanced, 1 = Silent, 2 = Turbo ([G-Helper L635-L666][gh-acpi-curve], [Linux L3618-L3647][lx-wmi-curve]). The Probe reads all three modes for every fan-curve ID (CPU, GPU and mid); the public scan has only mode 0.
-- Phase 4 rule: a custom curve may never be lower than the factory curve for the same mode at any temperature, temperatures must rise, and duty stays within 0–100 %.
+- Fan floors (`0x00110026`/`0x00110027`) are 8 duty bytes with no status word, one for each of 30, 40, … 100 °C: G-Helper reads them as a buffer and plots `floors[i]` at `30 + 10 i` °C ([GetFanFloor L668-L676][gh-acpi-floor], [Fans.cs L905-L908][gh-fans-floor]). Build 0.2.0+ci.3 wrongly read them as a status word; fixed after Bradley's reports (§13).
+- Phase 4 rule: a custom curve may never be lower than the factory curve for the same mode at any temperature, nor below the fan floor; temperatures must rise, and duty stays within 0–100 %.
 
 ### 6.4 Battery Care (charge limit)
 
@@ -218,19 +221,59 @@ All read-only in Phase 1, using documented APIs:
 8. Baseline: power plan, CPU Boost value, Windows power mode.
 9. The `AsusAtkWmi_WMNB` method signatures, in case a WMI path is ever needed.
 
-After the report: matching endpoints move to `ConfirmedByProbe` in a PR that quotes the report. Anything that does not match is investigated before Phase 4.
+After the report: matching endpoints move to `ConfirmedByProbe` in a PR that quotes the report. Anything that does not match is investigated before Phase 4. Answers from the first reports are in §13.
 
 ## 12. Safety rules derived from this research
 
 Phase 2 (the safety framework) and Phase 4 (ASUS writes) build on these:
 
-1. Write only to endpoints marked `ConfirmedByProbe`.
+1. Write only to endpoints marked `ConfirmedByProbe`, and only while a fresh Probe still matches them on the same BIOS (the Probe's *Matches the reviewed results* line).
 2. Clamp power limits to the Linux RC73XA ranges (§6.1), separately for AC and battery.
 3. VRAM: only values from the device's own option list. Never 0x100 or 0x101 on `0x000600C1`.
 4. Cores: only within the device's reported min and max.
 5. Fan curves: never below the factory curve, temperatures rising, duty 0–100 %.
 6. Many settings cannot be read back (power limits, mode, charge limit). The app records what it applied, and "Reset to Safe Defaults" returns to firmware defaults through a mode that is confirmed in dry-run.
 7. Every first write of each control ships in dry-run first, and Bradley watches it on the Ally.
+
+## 13. Bradley's Probe results (2026-11-15)
+
+Two Probe reports from Bradley's ROG Xbox Ally X, build `0.2.0+ci.3`, both on the Windows desktop: `probe-20261115-175955-battery-desktop.txt` (on battery, 75 %) and `probe-20261115-180315-ac-desktop.txt` (plugged in). The reports stay outside the repository; the ASUS replies are copied into `tests/AllyTuner.Core.Tests/Asus/BradleyAllyProbe.cs` and tested against the catalog. Per-ID notes are in `src/AllyTuner.Core/Asus/BradleyAllyEvidence.cs` and appear in every new report as "seen on the reviewed Ally".
+
+### 13.1 Answers to §11
+
+| # | Question | Answer from the reports |
+|---|---|---|
+| 1 | Detection fields | `Model` = "ROG Xbox Ally X RC73XA_RC73XA", `BaseBoardProduct` = "RC73XA", manufacturer "ASUSTeK COMPUTER INC.", BIOS **RC73XA.319**, Windows 11 Home build 26200. Detection holds. |
+| 2 | Read-only handle | Yes: "Driver handle: opened (read-only)". |
+| 3 | Presence vs the public scan | All 21 IDs the public scan had are present, with the same values where the value is static. The 5 IDs the scan lacked: 3 fail with Windows error 1, and the 2 fan floors return data (below). |
+| 4 | VRAM | Same option list (Auto, 512 MB, 1–16 GB). Current **8 GB** (the public owner had 4 GB). Windows agrees: DXGI dedicated video memory 7.83 GB, 15.62 GB of RAM visible. |
+| 5 | Fan curves, modes 1 and 2 | Read for CPU and GPU. Mode 1 is cooler and quieter, mode 2 faster, which fits 1 = Silent, 2 = Turbo. CPU Turbo: 48, 55, 58, 62, 66, 73, 73, 94 °C → 9, 26, 39, 48, 56, 65, 65, 78 %. |
+| 6 | Armoury Crate | Running: services `ArmouryCrateControlInterface`, `ArmouryCrateSEService` and the ASUS services listed in the report; processes include `ArmouryCrateSE`, `ArmouryCrateSE.Service` and `ArmouryCrateSE.UserSessionHelper`. |
+| 7 | Full Screen Experience | **Unverified.** On the desktop: API set present, *Supported* yes, *Active* no. The run inside the Full Screen Experience has not been done. |
+| 8 | Baseline | Battery: plan "Performance" `{27fa6203-…}`. AC: plan "Balanced" `{381b4222-…}`. CPU Boost Aggressive (2) on AC and battery. Windows power mode Balanced in both. |
+| 9 | WMI | `AsusAtkWmi_WMNB` lists DSTS, DEVS, INIT, WDOG and 15 others. Nothing calls them. |
+
+### 13.2 What moved to confirmed, held or absent
+
+- **Confirmed (18):** performance mode, SPL / sPPT / fPPT, CPU temperature, CPU and GPU fan speed, CPU and GPU fan range, CPU and GPU fan curves, battery charge limit, charger type, VRAM, the three core-layout IDs and MCU power-save. "Confirmed" means present and reading as predicted. Several of these are **write-only** (performance mode reads 7, the power limits read 0, the charge limit reads 0x01880000), exactly as in the public scan, so a read never shows what is set.
+- **Held (5):** `0x001200B0` and `0x001200B1` matched, but no source ties them to the Ally. `0x00120097` reads 43–44 °C and moves with the CPU temperature, but Linux calls the same ID DGPU_POWER_STATE, so it stays display-only. The two fan floors are decoded from a single source after the fact.
+- **Absent (3):** mid fan speed `0x00110031`, mid fan curve `0x00110032` and original-Ally APU memory `0x000600C1`. The call fails with Windows error 1 (ERROR_INVALID_FUNCTION) on both runs. That build read the mid fan curve for mode 0 only; the Probe now reads all three modes.
+
+### 13.3 Things that looked odd, and what they mean
+
+1. **Performance mode reads 7**, and **SPL, sPPT and fPPT read 0.** Expected: the public scan showed the same. These are write-only, so Phase 4 must record what it applies.
+2. **Charge limit reads 0x01880000** (reply `00008901`), identical on both runs and to the public scan, where G-Helper had just set 80 %. The format is still unknown and it is not a percentage. Battery Care stays write-only.
+3. **`0x00120097` is plausible as a GPU temperature** (43 → 44 °C while the CPU went 49 → 51 °C), but one device's numbers cannot settle a naming dispute between sources. Display only.
+4. **Fan floors were misread.** Build 0.2.0+ci.3 decoded `0x00110026`/`0x00110027` as a status word and called them "not present". The replies (`0000000027303841`, `000000001D263243`, the same on both runs) are G-Helper's 8-byte floor table: 0 % up to 60 °C, then 39–65 % (CPU) and 29–67 % (GPU) from 70 to 100 °C. Fixed; held unconfirmed until a new report shows the same.
+5. **The power plan changed with the charger**: "Performance" (a non-standard plan GUID `27fa6203-3987-4dcc-918d-748559d549ec`) on battery, Windows "Balanced" on AC, 3 minutes apart. Probably Armoury Crate switching plans by power source; not confirmed. Phase 4 has to expect Armoury Crate to change settings underneath it.
+6. **Charger type is live**: 0 on battery, 2 (USB-C) on AC. Useful for "apply plugged-in settings only on AC".
+7. **App version `0.2.0+ci.3.32edec9`**: `32edec9` is the merge commit GitHub builds for a pull request, not a branch commit. Expected.
+
+### 13.4 Still to do on the Ally
+
+- Run the Probe **inside the Full Screen Experience** (FSE detection is unverified).
+- Run the Probe once with the next build: it should say *Matches the reviewed results: yes*, show the fan floors decoded, and read the mid fan curve for all three modes.
+- After any BIOS update, run the Probe again before trusting the confirmations.
 
 [gh]: https://github.com/seerge/g-helper/tree/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec
 [gh-acpi-32]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L32-L37
@@ -248,6 +291,7 @@ Phase 2 (the safety framework) and Phase 4 (ASUS writes) build on these:
 [gh-acpi-curve]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L635-L666
 [gh-acpi-setcurve]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L605-L633
 [gh-acpi-floor]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L668-L676
+[gh-fans-floor]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Fans.cs#L905-L908
 [gh-acpi-85]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L85
 [gh-acpi-charger]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L58-L61
 [gh-acpi-vram]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L830-L857

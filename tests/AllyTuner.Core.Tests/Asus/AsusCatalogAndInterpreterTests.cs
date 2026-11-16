@@ -36,10 +36,13 @@ public class AsusEndpointCatalogTests
     }
 
     [Fact]
-    public void Phase_1_confirms_nothing_on_the_device()
+    public void Confirmation_comes_only_from_recorded_evidence()
     {
-        // Endpoints move to ConfirmedByProbe only in a later PR that quotes Bradley's Probe report.
-        Assert.All(AsusEndpointCatalog.All, e => Assert.Equal(DeviceConfirmation.Unconfirmed, e.Confirmation));
+        // Every confirmed or absent endpoint carries the quoted evidence from Bradley's reports.
+        Assert.All(
+            AsusEndpointCatalog.All.Where(e => e.Confirmation != DeviceConfirmation.Unconfirmed),
+            e => Assert.False(string.IsNullOrWhiteSpace(e.DeviceEvidence), $"{e.IdHex} has no evidence"));
+        Assert.All(BradleyAllyEvidence.ById.Keys, id => Assert.NotNull(AsusEndpointCatalog.ById(id)));
     }
 
     [Fact]
