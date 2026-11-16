@@ -211,6 +211,14 @@ public sealed partial class HomePage : Page
         try
         {
             var services = App.Services;
+            var source = await Task.Run(services.CurrentPowerSource);
+            if (Core.Power.RecommendedSetup.PowerSourceBlock(source) is { } onBattery)
+            {
+                RecommendedStatus.Text = onBattery;
+                await Safety.SafetyDialogs.ShowMessageAsync(XamlRoot, "Plug the Ally in first", onBattery);
+                return;
+            }
+
             var plans = await Task.Run(() =>
             {
                 services.AmdReader.Refresh();
@@ -218,7 +226,7 @@ public sealed partial class HomePage : Page
                 services.ControlReader.Invalidate();
                 return Core.Power.RecommendedSetup.Plan(services.Changes);
             });
-            var records = await Safety.SafetyDialogs.ConfirmAndRunBatchAsync(XamlRoot, Core.Power.RecommendedSetup.Confirmation(plans), plans);
+            var records = await Safety.SafetyDialogs.ConfirmAndRunBatchAsync(XamlRoot, Core.Power.RecommendedSetup.Confirmation(plans, source), plans);
             RecommendedStatus.Text = records.Count == 0
                 ? string.Empty
                 : services.Gate.EverythingIsDryRun

@@ -43,7 +43,8 @@ public sealed class RecommendedSetupTests : IDisposable
             },
         };
 
-        var power = new PowerControlReader(() => _device, () => AppSettings.Defaults, () => null, _log, maxAge: TimeSpan.Zero);
+        var journal = new ChangeJournal(_dir, _log);
+        var power = new PowerControlReader(() => _device, () => AppSettings.Defaults, () => journal.LatestDone(TunableSettings.PerformanceModeId)?.Value, _log, maxAge: TimeSpan.Zero);
         var tweaks = new TweakSettingReader(() => _windows, _log, maxAge: TimeSpan.Zero);
         _amd = new AmdSettingReader(() => _amdFacts, _log);
         _amd.Refresh();
@@ -51,7 +52,7 @@ public sealed class RecommendedSetupTests : IDisposable
             (PowerControlReader.Owns, power),
             (AmdSettingReader.Owns, _amd),
             (s => s.Group is WindowsTweaks.Group or StartupApps.Group, tweaks));
-        Service = new SafeChangeService([.. PowerControls.All, .. AmdFeatures.All, .. WindowsTweaks.All], new ChangeJournal(_dir, _log),
+        Service = new SafeChangeService([.. PowerControls.All, .. AmdFeatures.All, .. WindowsTweaks.All], journal,
             new WriteGate(() => AppSettings.Defaults), NoHardwareWriter.Instance, _log, () => PowerSource.AC, router, describer: router);
     }
 
@@ -125,7 +126,7 @@ public sealed class RecommendedSetupTests : IDisposable
         _amdFacts = _amdFacts with { Features = new Dictionary<string, AmdFeatureState>(_amdFacts.Features) { [AmdFeatures.ChillId] = new(true, true) } };
         _amd.Refresh();
 
-        var text = RecommendedSetup.Confirmation(RecommendedSetup.Plan(Service));
+        var text = RecommendedSetup.Confirmation(RecommendedSetup.Plan(Service), PowerSource.AC);
         Assert.Contains(text.Lines, l => l.StartsWith("Memory integrity: skipped.", StringComparison.Ordinal));
         Assert.Contains(text.Lines, l => l.StartsWith("Radeon Anti-Lag: skipped.", StringComparison.Ordinal) && l.Contains("Chill", StringComparison.Ordinal));
         Assert.Contains(text.Lines, l => l.StartsWith("Needs a restart to take effect:", StringComparison.Ordinal) && l.Contains("GPU memory (VRAM)", StringComparison.Ordinal));
@@ -136,7 +137,7 @@ public sealed class RecommendedSetupTests : IDisposable
     public async Task The_whole_setup_is_one_dry_run_batch_and_every_step_is_logged()
     {
         var plans = RecommendedSetup.Plan(Service);
-        var text = RecommendedSetup.Confirmation(plans);
+        var text = RecommendedSetup.Confirmation(plans, PowerSource.AC);
         Assert.Equal("Simulate Apply Recommended Plugged-In Setup?", text.Title);
 
         var records = await Service.ExecuteAsync(ConfirmationText.ConfirmBatch(plans));
@@ -147,5 +148,35 @@ public sealed class RecommendedSetupTests : IDisposable
             Assert.StartsWith("Dry-run: would set", r.Summary, StringComparison.Ordinal);
             Assert.Contains("Would ", r.Detail, StringComparison.Ordinal);
         });
+
+        // The fan steps send the firmware's own Turbo curves (Bradley's mode-2 replies), byte for byte.
+        Assert.Contains("Would send DEVS 0x00110024 with 30 37 3A 3E 42 49 49 5E 09 1A 27 30 38 41 41 4E",
+            records.Single(r => r.SettingId == PowerControls.CpuFanCurveId).Detail, StringComparison.Ordinal);
+        Assert.Contains("Would send DEVS 0x00110025 with 30 37 3A 3E 42 46 49 5E 09 19 19 26 2E 36 43 4F",
+            records.Single(r => r.SettingId == PowerControls.GpuFanCurveId).Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Undo_is_available_for_every_step_except_the_power_limits_the_first_time()
+    {
+        var plans = RecommendedSetup.Plan(Service);
+        var text = RecommendedSetup.Confirmation(plans, PowerSource.AC);
+        Assert.Contains(text.Lines, l => l.Contains("except: Sustained power limit (SPL), Slow boost limit (sPPT), Fast boost limit (fPPT)", StringComparison.Ordinal));
+
+        var records = await Service.ExecuteAsync(ConfirmationText.ConfirmBatch(plans));
+        var limits = new[] { TunableSettings.SustainedPowerId, TunableSettings.SlowBoostPowerId, TunableSettings.FastBoostPowerId };
+        Assert.All(records, r => Assert.Equal(!limits.Contains(r.SettingId), Service.CheckUndo(r).Available));
+    }
+
+    [Fact]
+    public void It_is_refused_on_battery_and_warns_when_the_power_source_is_unknown()
+    {
+        Assert.Equal(RecommendedSetup.OnBatteryReason, RecommendedSetup.PowerSourceBlock(PowerSource.Battery));
+        Assert.Null(RecommendedSetup.PowerSourceBlock(PowerSource.AC));
+        Assert.Null(RecommendedSetup.PowerSourceBlock(PowerSource.Unknown));
+
+        var plans = RecommendedSetup.Plan(Service);
+        Assert.Contains(RecommendedSetup.UnknownPowerWarning, RecommendedSetup.Confirmation(plans, PowerSource.Unknown).Lines);
+        Assert.DoesNotContain(RecommendedSetup.UnknownPowerWarning, RecommendedSetup.Confirmation(plans, PowerSource.AC).Lines);
     }
 }

@@ -451,14 +451,16 @@ Read through AMD's ADLX C interface (pinned headers, ADLX 2.0.0.125). The read c
 Sequence: `ADLXInitialize(ADLX_FULL_VERSION)` → `IADLXSystem::GetGPUs` (slot 1; IADLXSystem has no Acquire/Release) → `IADLXGPUList::At_GPUList(0)` (slot 11) → `IADLXSystem::Get3DSettingsServices` (slot 7) → features → `Release` (slot 1) on everything acquired → `ADLXTerminate`. The slot numbers are counted from the C vtable structs in `ISystem.h` (L606-L627, L1195-L1210) and `I3DSettings.h` (L126-L137, L496-L512, L715-L730, L2353-L2367, L3457-L3479).
 
 Rules:
-- **Read only on request.** ADLX is read only when *Read AMD settings* is pressed on the Graphics page. Nothing reads it on a timer, at startup or on page load. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked. The slot numbers themselves are checked by a unit test against the pinned headers, downloaded at test time (`AdlxSlotsTests`).
+- **Read only on request.** ADLX is read only when *Read AMD settings* is pressed on the Graphics page, or as part of *Apply Recommended Setup* on Home (Phase 6, §17); both are explicit actions. Nothing reads it on a timer, at startup or on page load. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked. The slot numbers themselves are checked by a unit test against the pinned headers, downloaded at test time (`AdlxSlotsTests`).
 - **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first. A conflicting feature whose state did not read counts as unknown, not off, so the change is refused until it reads.
 - **HYPR-RX, FSR and Auto SR** are not app-controllable. The page shows where each is set (AMD Software, in-game, Windows Settings).
 - Per-game AMD settings are part of the per-game-profile fast follow.
 
 ## 17. Recommended Plugged-In Setup (Phase 6)
 
-The brief's one-click setup (§11), built only from settings that already have their own sources, limits and checks (`Core/Power/RecommendedSetup`). It is one batch with one confirmation. Steps already in place are skipped, refused steps are listed with the reason, and every step is logged and can be undone from the change log. It is a dry-run in this build.
+The brief's one-click setup (§11), built only from settings that already have their own sources, limits and checks (`Core/Power/RecommendedSetup`). It is one batch with one confirmation, and a dry-run in this build. Steps already in place are skipped and refused steps are listed with the reason. Every step is logged and can be undone from the change log, with one exception: SPL, sPPT and fPPT the first time. The device cannot report them, so there is no earlier value, and the confirmation names them. Reset to Safe Defaults resets the mode, which brings back the firmware's own limits.
+
+**Plugged in only.** On battery the setup is refused with a message, because its power limits are plugged-in values. If Windows cannot tell, the confirmation says so.
 
 | Brief §11 | Step |
 |---|---|

@@ -1,4 +1,5 @@
 using AllyTuner.Core.Amd;
+using AllyTuner.Core.Detection;
 using AllyTuner.Core.Safety;
 using AllyTuner.Core.Tweaks;
 
@@ -6,8 +7,10 @@ namespace AllyTuner.Core.Power;
 
 /// <summary>
 /// The brief's one-click "Apply Recommended Plugged-In Setup" (§11), built only from settings that already have their
-/// own limits, sources and confirmation: one batch, one confirmation, every step logged and undoable from the change
-/// log, and a dry-run in this build.
+/// own limits, sources and confirmation: one batch, one confirmation, every step logged, and a dry-run in this build.
+/// Every step can be undone from the change log except the three power limits the first time: the device cannot
+/// report them, so there is no earlier value (the confirmation names them; Reset to Safe Defaults resets the mode,
+/// which brings back the firmware's own limits). It is meant for an Ally that is plugged in, so on battery it is refused.
 /// </summary>
 public static class RecommendedSetup
 {
@@ -82,8 +85,21 @@ public static class RecommendedSetup
         return plans.OrderBy(p => p.Setting.Risk == ChangeRisk.NeedsRestart ? 1 : 0).ToList();
     }
 
-    public static ConfirmationText Confirmation(IReadOnlyList<ChangePlan> plans) =>
-        ConfirmationText.ForBatch(
-            "Apply Recommended Plugged-In Setup", "Apply", "Simulate", plans, Notes,
+    public const string OnBatteryReason =
+        "The Ally is on battery. This setup is for an Ally that stays plugged in (35 W sustained, Battery Care): plug it in, then apply it.";
+
+    public const string UnknownPowerWarning =
+        "Windows did not report whether the Ally is plugged in. This setup is meant for when it is.";
+
+    /// <summary>Refuses the setup on battery; the power limits it sets are plugged-in values.</summary>
+    public static string? PowerSourceBlock(PowerSource source) => source == PowerSource.Battery ? OnBatteryReason : null;
+
+    public static ConfirmationText Confirmation(IReadOnlyList<ChangePlan> plans, PowerSource source)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        IReadOnlyList<string> notes = source == PowerSource.Unknown ? [UnknownPowerWarning, .. Notes] : Notes;
+        return ConfirmationText.ForBatch(
+            "Apply Recommended Plugged-In Setup", "Apply", "Simulate", plans, notes,
             "Everything in the recommended setup is already in place.");
+    }
 }

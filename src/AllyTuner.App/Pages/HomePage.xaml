@@ -184,7 +184,7 @@
           <TextBlock Text="Recommended Plugged-In Setup" Style="{StaticResource CardValueTextStyle}" />
           <TextBlock
               Style="{StaticResource CardDetailTextStyle}"
-              Text="One confirmation for the brief's plugged-in setup: Performance Max (Turbo, 35 W sustained, Turbo fan curve), Battery Care at 80 %, 10 GB VRAM, Memory integrity and VM Platform off, Game Mode, GPU scheduling, windowed-game optimizations, best-performance power mode and Radeon Anti-Lag. CPU Boost stays on. Steps already in place are skipped; every step is logged and can be undone from the change log." />
+              Text="One confirmation for the brief's plugged-in setup: Performance Max (Turbo, 35 W sustained, Turbo fan curve), Battery Care at 80 %, 10 GB VRAM, Memory integrity and VM Platform off, Game Mode, GPU scheduling, windowed-game optimizations, best-performance power mode and Radeon Anti-Lag. CPU Boost stays on. Plugged in only. Steps already in place are skipped. Every step is logged; each can be undone from the change log except the three power limits the first time (the device cannot report them, so there is no earlier value; Reset to Safe Defaults brings back the firmware's own)." />
           <Button x:Name="RecommendedButton" Content="Apply Recommended Setup…" Style="{StaticResource TouchAccentButtonStyle}" Click="RecommendedButton_Click" />
           <TextBlock x:Name="RecommendedStatus" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
