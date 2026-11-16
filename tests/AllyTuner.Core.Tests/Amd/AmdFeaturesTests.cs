@@ -185,6 +185,39 @@ public sealed partial class AmdFeaturesTests : IDisposable
         Assert.Contains("Radeon Chill", record.Detail, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(AmdFeatures.BoostId)]
+    [InlineData(AmdFeatures.SuperResolutionId)]
+    public void The_boost_and_super_resolution_caution_shows_only_when_turning_on(string id)
+    {
+        var setting = AmdFeatures.ById(id)!;
+        Facts = Read(antiLag: false, chill: false, boost: true, rsr: true);
+        Reader.Refresh();
+
+        var off = Service.Plan(setting, 0);
+        Assert.True(off.CanProceed);
+        Assert.DoesNotContain(setting.Warning, off.Confirmation.Lines);
+        Assert.DoesNotContain(setting.Warning, ConfirmationText.ForBatch("Batch", "Apply", "Simulate", [off], [], "Nothing.").Lines);
+
+        Facts = Read(antiLag: false, chill: false, boost: false, rsr: false);
+        Reader.Refresh();
+        var on = Service.Plan(setting, 1);
+        Assert.True(on.CanProceed);
+        Assert.Contains(setting.Warning, on.Confirmation.Lines);
+        Assert.Contains(setting.Warning, ConfirmationText.ForBatch("Batch", "Apply", "Simulate", [on], [], "Nothing.").Lines);
+    }
+
+    [Fact]
+    public void A_warning_without_values_applies_to_every_change()
+    {
+        var always = AmdFeatures.AntiLag with { Warning = "Always.", WarningForValues = null };
+        Assert.Equal("Always.", always.WarningFor(0));
+        Assert.Equal("Always.", always.WarningFor(1));
+        Assert.Equal(string.Empty, AmdFeatures.Boost.WarningFor(0));
+        Assert.Equal(string.Empty, AmdFeatures.Boost.WarningFor(null));
+        Assert.Equal(AmdFeatures.Boost.Warning, AmdFeatures.Boost.WarningFor(1));
+    }
+
     [Fact]
     public void Platform_adlx_code_has_no_setter_calls()
     {
