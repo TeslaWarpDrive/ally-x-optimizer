@@ -55,6 +55,7 @@ public static class AmdFeatures
         "Upscales games that run below the screen's resolution. A global setting for all games.") with
     {
         Warning = "On some AMD GPUs Radeon Boost cannot run together with Radeon Super Resolution, and AMD turns Boost off. Check the Boost card afterwards.",
+        WarningForValues = [1], // only when turning it on
     };
 
     public static SettingDefinition Boost { get; } = Feature(
@@ -63,6 +64,7 @@ public static class AmdFeatures
     {
         // I3DSettings.h #L670-L672: on some GPUs Boost and RSR cannot run together; enabling Boost disables RSR.
         Warning = "On some AMD GPUs Radeon Super Resolution cannot run together with Radeon Boost, and AMD turns Super Resolution off. Check the Super Resolution card afterwards.",
+        WarningForValues = [1], // only when turning it on
     };
 
     public static SettingDefinition Chill { get; } = Feature(
