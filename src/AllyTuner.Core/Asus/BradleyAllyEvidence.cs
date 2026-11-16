@@ -69,9 +69,25 @@ public static class BradleyAllyEvidence
             .ToList();
     }
 
+    public static int ConfirmedCount => Count(DeviceConfirmation.ConfirmedByProbe);
+
+    public static int AbsentCount => Count(DeviceConfirmation.AbsentOnDevice);
+
+    public static int HeldCount => Count(DeviceConfirmation.Unconfirmed);
+
     /// <summary>
-    /// Compares a fresh Probe with the recorded results: the BIOS version, every confirmed ID still present,
-    /// and no absent ID suddenly present. Returns one line per difference; an empty list means it all still holds.
+    /// Exactly what <see cref="Check"/> compares, for the Probe report line. It checks presence only: the values
+    /// (temperatures, fan speeds, curves) are not compared, because many of them change from one read to the next.
+    /// </summary>
+    public static string CheckScope =>
+        $"BIOS {BiosVersion}; {ConfirmedCount} confirmed IDs present, {AbsentCount} absent IDs still absent, " +
+        $"{HeldCount} held IDs present. Presence only; values are not compared.";
+
+    /// <summary>
+    /// Compares a fresh Probe with the recorded results. For every ID with recorded evidence: it must have been
+    /// read; a confirmed or held ID must read as present on every read (both were present on the reviewed Ally);
+    /// an absent ID must never read as present. The BIOS version must match too. Values are not compared
+    /// (see <see cref="CheckScope"/>). Returns one line per difference; an empty list means it all still holds.
     /// </summary>
     public static IReadOnlyList<string> Check(string? biosVersion, IReadOnlyList<AsusReading> readings)
     {
@@ -83,23 +99,37 @@ public static class BradleyAllyEvidence
             differences.Add($"BIOS is {(string.IsNullOrWhiteSpace(biosVersion) ? "not reported" : biosVersion.Trim())}, not {BiosVersion}; run the Probe again and review it before trusting the confirmations.");
         }
 
-        foreach (var group in readings.GroupBy(r => r.Endpoint.Id))
+        var byId = readings.ToLookup(r => r.Endpoint.Id);
+        foreach (var (id, evidence) in ById.OrderBy(kv => kv.Key))
         {
-            var endpoint = group.First().Endpoint;
-            var allPresent = group.All(r => r.Presence == AsusPresence.Present);
-            var anyPresent = group.Any(r => r.Presence == AsusPresence.Present);
-            if (endpoint.Confirmation == DeviceConfirmation.ConfirmedByProbe && !allPresent)
+            var reads = byId[id].ToList();
+            var name = $"0x{id:X8} {AsusEndpointCatalog.ById(id)?.Name}".TrimEnd();
+            if (reads.Count == 0)
             {
-                differences.Add($"{endpoint.IdHex} {endpoint.Name} was confirmed but did not read as present.");
+                differences.Add($"{name} was not read.");
+                continue;
             }
-            else if (endpoint.Confirmation == DeviceConfirmation.AbsentOnDevice && anyPresent)
+
+            var allPresent = reads.All(r => r.Presence == AsusPresence.Present);
+            var anyPresent = reads.Any(r => r.Presence == AsusPresence.Present);
+            switch (evidence.Confirmation)
             {
-                differences.Add($"{endpoint.IdHex} {endpoint.Name} was absent but now reads as present.");
+                case DeviceConfirmation.ConfirmedByProbe when !allPresent:
+                    differences.Add($"{name} was confirmed but did not read as present.");
+                    break;
+                case DeviceConfirmation.Unconfirmed when !allPresent:
+                    differences.Add($"{name} (held) was present but did not read as present.");
+                    break;
+                case DeviceConfirmation.AbsentOnDevice when anyPresent:
+                    differences.Add($"{name} was absent but now reads as present.");
+                    break;
             }
         }
 
         return differences;
     }
+
+    private static int Count(DeviceConfirmation confirmation) => ById.Values.Count(e => e.Confirmation == confirmation);
 
     private static DeviceEvidenceEntry Confirmed(string observed) => new(DeviceConfirmation.ConfirmedByProbe, observed);
 

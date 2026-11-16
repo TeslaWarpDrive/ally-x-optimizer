@@ -36,7 +36,7 @@ Upgrading: run a newer installer over the old one. Uninstall: Settings → Apps 
 
 The first two reports (2026-11-15) are reviewed; the results are in docs/RESEARCH.md §13. With the next build:
 
-1. **Run the probe on the desktop**, plugged in. *Key results* should say **Matches the reviewed results: yes**. If it says *no*, the lines under it say what changed (for example a new BIOS).
+1. **Run the probe on the desktop**, plugged in. *Key results* should say **Matches the reviewed results: yes**, followed by exactly what was checked (BIOS RC73XA.319; 18 confirmed IDs present, 3 absent IDs still absent, 5 held IDs present; presence only, values are not compared). If it says *no*, the lines under it say what changed (for example a new BIOS).
 2. **Run it inside the Xbox Full Screen Experience.** This is still unverified: *Xbox Full Screen Experience* should say it is on.
 3. **Send both reports** as before.
 

@@ -154,6 +154,45 @@ public class BradleyAllyEvidenceTests
     }
 
     [Fact]
+    public void Check_flags_a_missing_read_and_a_held_id_that_disappears()
+    {
+        var reads = BradleyAllyProbe.OnBattery
+            .Where(r => r.DeviceId != 0x00120094)
+            .Select(r => r.DeviceId == 0x00120097 ? r with { CallSucceeded = false, Win32Error = 1 } : r)
+            .ToList();
+
+        var differences = BradleyAllyEvidence.Check(BradleyAllyEvidence.BiosVersion, AsusProbeInterpreter.Interpret(reads));
+        Assert.Equal(2, differences.Count);
+        Assert.Contains(differences, d => d.StartsWith("0x00120094", StringComparison.Ordinal) && d.EndsWith("was not read.", StringComparison.Ordinal));
+        Assert.Contains(differences, d => d.StartsWith("0x00120097", StringComparison.Ordinal) && d.Contains("(held)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Check_with_no_readings_flags_every_id()
+    {
+        Assert.Equal(BradleyAllyEvidence.ById.Count, BradleyAllyEvidence.Check(BradleyAllyEvidence.BiosVersion, []).Count);
+    }
+
+    [Fact]
+    public void Check_scope_states_exactly_what_is_compared()
+    {
+        Assert.Equal(
+            "BIOS RC73XA.319; 18 confirmed IDs present, 3 absent IDs still absent, 5 held IDs present. Presence only; values are not compared.",
+            BradleyAllyEvidence.CheckScope);
+        Assert.Equal(BradleyAllyEvidence.ById.Count, BradleyAllyEvidence.ConfirmedCount + BradleyAllyEvidence.AbsentCount + BradleyAllyEvidence.HeldCount);
+    }
+
+    [Fact]
+    public void Public_scan_text_never_calls_a_present_id_absent()
+    {
+        Assert.All(AsusEndpointCatalog.All.Where(e => e.Confirmation != DeviceConfirmation.AbsentOnDevice), e =>
+            Assert.DoesNotContain("absent", e.PublicRc73xaEvidence, StringComparison.OrdinalIgnoreCase));
+
+        var floor = Battery.Single(r => r.Endpoint.Id == 0x00110026);
+        Assert.Equal("Not in the public RC73XA scan.", floor.ExpectedFromPublicScan);
+    }
+
+    [Fact]
     public void Report_shows_confirmation_source_and_evidence()
     {
         var builder = new ProbeReportBuilder();

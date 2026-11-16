@@ -227,7 +227,7 @@ After the report: matching endpoints move to `ConfirmedByProbe` in a PR that quo
 
 Phase 2 (the safety framework) and Phase 4 (ASUS writes) build on these:
 
-1. Write only to endpoints marked `ConfirmedByProbe`, and only while a fresh Probe still matches them on the same BIOS (the Probe's *Matches the reviewed results* line).
+1. Write only to endpoints marked `ConfirmedByProbe`, and only while a fresh Probe still matches them on the same BIOS (the Probe's *Matches the reviewed results* line). That line checks the BIOS version and the presence of every recorded ID (18 confirmed present, 3 absent still absent, 5 held present); it does not compare values, and a missing read counts as a difference.
 2. Clamp power limits to the Linux RC73XA ranges (§6.1), separately for AC and battery.
 3. VRAM: only values from the device's own option list. Never 0x100 or 0x101 on `0x000600C1`.
 4. Cores: only within the device's reported min and max.

@@ -20,7 +20,9 @@ public static class AsusEndpointCatalog
     // G-Helper AsusACPI.cs #L635-L666; Linux asus-wmi.c fan_curve_get_factory_default #L3618-L3647.
     private static readonly uint[] FanCurveModes = [0, 1, 2];
 
-    public const string NotInPublicScan = "Not in the public RC73XA scan, so probably absent on this model.";
+    // Neutral on purpose: the scan simply did not read these IDs. Whether this model has them comes from the
+    // reviewed Probe (BradleyAllyEvidence), not from the scan; the fan floors, for example, are present.
+    public const string NotInPublicScan = "Not in the public RC73XA scan.";
     private const string WriteOnlyLooking = "Present, but read 0 while G-Helper was applying 13 W, so reading it does not show the current limit.";
 
     public static IReadOnlyList<AsusEndpoint> All { get; } = BradleyAllyEvidence.ApplyTo(
