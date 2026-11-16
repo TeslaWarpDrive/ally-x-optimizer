@@ -164,6 +164,100 @@ public sealed class ChangeJournalAndOverrideTests : IDisposable
         Assert.Contains("cannot be read back", warning, StringComparison.Ordinal);
     }
 
+    private OverrideWatcher Watcher(OverridePolicy policy, Func<IReadOnlyList<string>>? causes = null) =>
+        new(new OverrideMonitor(_f.Service, () => _f.Now), _f.Service, _f.Reader, () => policy, causes ?? (() => ["Armoury Crate"]), _f.Log, () => _f.Now);
+
+    [Fact]
+    public async Task Watcher_with_nothing_applied_checks_nothing_and_says_so()
+    {
+        var causesAsked = 0;
+        var watcher = Watcher(OverridePolicy.ReApply, () => { causesAsked++; return []; });
+
+        var result = await watcher.CheckAsync();
+        Assert.Equal(0, result.SettingsChecked);
+        Assert.Empty(result.Responses);
+        Assert.Equal(0, causesAsked);
+        Assert.StartsWith("Active, but there is nothing to check yet", watcher.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Watcher_warns_once_per_distinct_message_and_only_asks_for_causes_on_a_change()
+    {
+        await Apply(Readable.Id, 80);
+        var causesAsked = 0;
+        var watcher = Watcher(OverridePolicy.Warn, () => { causesAsked++; return ["Armoury Crate"]; });
+
+        _f.Reader.Values[Readable.Id] = 80;
+        Assert.Empty((await watcher.CheckAsync()).Responses);
+        Assert.Equal(0, causesAsked);
+        Assert.Contains("checking 1 setting(s)", watcher.Status, StringComparison.Ordinal);
+
+        _f.Reader.Values[Readable.Id] = 60;
+        var first = await watcher.CheckAsync();
+        await watcher.CheckAsync();
+        var warning = Assert.Single(first.Warnings);
+        Assert.Equal(OverrideAction.Warn, warning.Action);
+        Assert.Contains("Armoury Crate may have changed it", warning.Message, StringComparison.Ordinal);
+        Assert.Single(_f.Log.Entries, e => e.Message.StartsWith("[override]", StringComparison.Ordinal));
+        Assert.Same(watcher.Last, watcher.Last);
+        Assert.Contains("changed by another app", watcher.Status, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Watcher_re_applies_through_the_safety_service()
+    {
+        await Apply(Readable.Id, 80);
+        _f.Reader.Values[Readable.Id] = 60;
+        var watcher = Watcher(OverridePolicy.ReApply);
+        OverrideCheckResult? seen = null;
+        watcher.Checked += (_, r) => seen = r;
+
+        var result = await watcher.CheckAsync();
+        var record = Assert.Single(result.ReApplied);
+        Assert.Equal(ChangeOrigin.ReApply, record.Origin);
+        Assert.Equal(ChangeOutcome.Applied, record.Outcome);
+        Assert.Empty(result.Warnings);
+        Assert.Same(result, seen);
+    }
+
+    [Fact]
+    public async Task Watcher_in_dry_run_only_simulates_the_re_apply()
+    {
+        await Apply(Readable.Id, 80);
+        _f.AppSettings = _f.AppSettings with { DryRunMode = true };
+        _f.Reader.Values[Readable.Id] = 60;
+        var writes = _f.Writer.Calls.Count;
+
+        var record = Assert.Single((await Watcher(OverridePolicy.ReApply).CheckAsync()).ReApplied);
+        Assert.Equal(ChangeOutcome.Simulated, record.Outcome);
+        Assert.Equal(writes, _f.Writer.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Watcher_survives_a_reader_that_throws()
+    {
+        await Apply(Readable.Id, 80);
+        var watcher = new OverrideWatcher(new OverrideMonitor(_f.Service), _f.Service, new ThrowingReader(), () => OverridePolicy.Warn, () => [], _f.Log);
+
+        var result = await watcher.CheckAsync();
+        Assert.Equal(0, result.SettingsChecked);
+        Assert.Contains(_f.Log.Entries, e => e.Level == LogLevel.Warn && e.Exception is InvalidOperationException);
+    }
+
+    [Fact]
+    public async Task Write_only_settings_are_not_read_back_and_the_status_says_so()
+    {
+        await Apply(TunableSettings.SustainedPowerId, 30);
+        var watcher = Watcher(OverridePolicy.Warn);
+        Assert.Equal(0, (await watcher.CheckAsync()).SettingsChecked);
+        Assert.StartsWith("Active. The settings changed so far cannot be read back", watcher.Status, StringComparison.Ordinal);
+    }
+
+    private sealed class ThrowingReader : ISettingReader
+    {
+        public int? TryRead(SettingDefinition setting) => throw new InvalidOperationException("no");
+    }
+
     [Fact]
     public void Monitor_arguments_are_checked()
     {

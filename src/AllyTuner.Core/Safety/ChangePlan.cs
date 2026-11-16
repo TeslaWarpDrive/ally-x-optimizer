@@ -29,6 +29,12 @@ public sealed record ChangePlan(
     /// <summary>"unknown → 30 W", "Balanced → Turbo".</summary>
     public string FromTo => $"{Setting.Format(Before)} → {Setting.Format(Guard.Value)}";
 
+    /// <summary>
+    /// True when Undo will be able to reverse this change: the value before is known, or the setting has a safe
+    /// default to return to. When false, the confirmation says so before the change is made.
+    /// </summary>
+    public bool UndoWillBeAvailable => BeforeSource != BeforeSource.Unknown || Setting.SafeDefault is not null;
+
     public ConfirmationText Confirmation => ConfirmationText.For(this);
 
     /// <summary>Call only after the person agreed to <see cref="Confirmation"/>. Refused plans cannot be confirmed.</summary>
@@ -125,7 +131,7 @@ public sealed record ConfirmationText(
         }
 
         lines.Add(DryRunLine(plan.Gate));
-        lines.Add(UndoLine);
+        lines.Add(plan.UndoWillBeAvailable ? UndoLine : SafeChangeService.NoUndoReason(setting));
 
         var verb = plan.Gate.IsDryRun ? "Simulate" : "Set";
         return new ConfirmationText(

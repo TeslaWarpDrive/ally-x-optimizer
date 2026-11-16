@@ -57,6 +57,7 @@ public sealed partial class SafetyPage : Page
 
     private void ShowMode()
     {
+        OverrideWatchText.Text = $"Override check: {App.Services.OverrideWatcher.Status}";
         var gate = App.Services.Gate;
         if (gate.EverythingIsDryRun)
         {
@@ -215,7 +216,8 @@ public sealed partial class SafetyPage : Page
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(text);
 
-        if (record.CanUndo)
+        var undoCheck = App.Services.Changes.CheckUndo(record);
+        if (undoCheck.Available)
         {
             var undo = new Button
             {
@@ -228,6 +230,15 @@ public sealed partial class SafetyPage : Page
             undo.Click += UndoButton_Click;
             Grid.SetColumn(undo, 1);
             grid.Children.Add(undo);
+        }
+        else if (record.CanUndo)
+        {
+            // It went through but there is nothing to go back to: say so instead of offering a button that refuses.
+            text.Children.Add(new TextBlock
+            {
+                Text = undoCheck.Reason,
+                Style = (Style)Application.Current.Resources["CardDetailTextStyle"],
+            });
         }
 
         return new Border { Style = (Style)Application.Current.Resources["CardStyle"], Child = grid };

@@ -76,6 +76,7 @@
     <Grid>
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
@@ -94,7 +95,17 @@
         </InfoBar.ActionButton>
       </InfoBar>
 
-      <Frame x:Name="ContentFrame" Grid.Row="1" />
+      <!-- Shown when the override check finds another app changed a setting back. -->
+      <InfoBar
+          x:Name="OverrideBanner"
+          Grid.Row="1"
+          Margin="16,8,16,0"
+          IsOpen="False"
+          IsClosable="True"
+          Severity="Warning"
+          Title="Another app changed a setting" />
+
+      <Frame x:Name="ContentFrame" Grid.Row="2" />
     </Grid>
   </NavigationView>
 </Window>

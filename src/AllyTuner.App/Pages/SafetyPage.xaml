@@ -17,6 +17,7 @@
           <TextBlock Text="Write mode" Style="{StaticResource CardLabelTextStyle}" />
           <TextBlock x:Name="ModeValue" Style="{StaticResource CardValueTextStyle}" />
           <TextBlock x:Name="ModeDetail" Style="{StaticResource CardDetailTextStyle}" />
+          <TextBlock x:Name="OverrideWatchText" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
       </Border>
 

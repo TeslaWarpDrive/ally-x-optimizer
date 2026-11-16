@@ -30,6 +30,10 @@ public sealed class AppServices
         // The only writer in this build cannot touch hardware; the gate keeps every change a dry-run anyway.
         Changes = new SafeChangeService(TunableSettings.All, Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource);
         Overrides = new OverrideMonitor(Changes);
+
+        // Checks read-back values every 30 s (MainWindow schedules it). Nothing in this build can be read back,
+        // and nothing is applied live, so it has nothing to compare yet; Phase 3 adds readable Windows settings.
+        OverrideWatcher = new OverrideWatcher(Overrides, Changes, reader: null, () => Settings.OverridePolicy, PossibleOverrideCauses, log);
         AppVersion = typeof(AppServices).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     }
@@ -52,6 +56,9 @@ public sealed class AppServices
     public SafeChangeService Changes { get; }
 
     public OverrideMonitor Overrides { get; }
+
+    /// <summary>The periodic override check (warn or re-apply, per the Settings choice).</summary>
+    public OverrideWatcher OverrideWatcher { get; }
 
     /// <summary>Raised on the caller's thread after settings are saved.</summary>
     public event EventHandler? SettingsChanged;
@@ -82,6 +89,20 @@ public sealed class AppServices
 
         Log.Info($"Settings changed: {before.Describe()} -> {Settings.Describe()}");
         SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Apps that may have changed a setting back. Only asked for when a change was actually detected.</summary>
+    private IReadOnlyList<string> PossibleOverrideCauses()
+    {
+        try
+        {
+            return EnvironmentReader.Read().AsusSoftware?.ArmouryCrate == ArmouryCrateState.Running ? ["Armoury Crate"] : [];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.Warn("Could not check which apps are running for the override warning.", ex);
+            return [];
+        }
     }
 
     private PowerSource CurrentPowerSource()
