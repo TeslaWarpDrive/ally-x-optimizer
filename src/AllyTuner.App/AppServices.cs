@@ -37,8 +37,9 @@ public sealed class AppServices
 
         // The ASUS and power controls (Phase 4) are read with DSTS reads only, and only on a supported RC73XA.
         var deviceReader = new DeviceControlFactsReader(log, IsSupportedDevice);
-        ControlReader = new PowerControlReader(deviceReader.Read, () => Settings, () => Journal.LastApplied(TunableSettings.PerformanceModeId), log);
-        // AMD features (Phase 5): read through ADLX only when the person asks (a button or Apply recommended).
+        ControlReader = new PowerControlReader(deviceReader.Read, () => Settings, CurrentPerformanceMode, log);
+
+        // AMD features (Phase 5): read through ADLX only when the person presses "Read AMD settings".
         AmdReader = new AmdSettingReader(() => AdlxReader.Read(log), log);
         Router = new SettingRouter(
             (PowerControlReader.Owns, ControlReader),
@@ -136,6 +137,14 @@ public sealed class AppServices
             return [];
         }
     }
+
+    /// <summary>
+    /// The performance mode the firmware-fan-curve step re-sends: in dry-run, the last mode set or simulated (so a
+    /// profile's fan step follows the mode that profile just chose); with live writes, only what was really applied.
+    /// </summary>
+    public int? CurrentPerformanceMode() => Gate.EverythingIsDryRun
+        ? Journal.LatestDone(TunableSettings.PerformanceModeId)?.Value
+        : Journal.LastApplied(TunableSettings.PerformanceModeId);
 
     /// <summary>True once the device is known to be an RC73XA. Until the snapshot is read, ASUS controls stay unavailable.</summary>
     public bool IsSupportedDevice() =>

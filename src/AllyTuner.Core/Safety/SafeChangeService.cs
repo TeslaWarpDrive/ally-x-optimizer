@@ -26,6 +26,12 @@ public interface ISettingReader
 
     /// <summary>Why this particular value cannot be used here (for example a fan curve quieter than the firmware's), or null.</summary>
     string? RefuseValue(SettingDefinition setting, int value) => null;
+
+    /// <summary>
+    /// The same, planned as part of a batch: <paramref name="earlierInBatch"/> are the steps that will run before it
+    /// (for example the mode a profile sets before its fans). By default the batch does not matter.
+    /// </summary>
+    string? RefuseValue(SettingDefinition setting, int value, IReadOnlyList<ChangePlan> earlierInBatch) => RefuseValue(setting, value);
 }
 
 /// <summary>Describes exactly what a write would do (registry value, feature, API call), for the change log and dry-run.</summary>
@@ -127,12 +133,13 @@ public sealed class SafeChangeService
         return Plan(setting, requested, origin);
     }
 
-    public ChangePlan Plan(SettingDefinition setting, int requested, ChangeOrigin origin = ChangeOrigin.User)
+    /// <param name="earlierInBatch">Steps of the same batch that run before this one, so a step can depend on them.</param>
+    public ChangePlan Plan(SettingDefinition setting, int requested, ChangeOrigin origin = ChangeOrigin.User, IReadOnlyList<ChangePlan>? earlierInBatch = null)
     {
         ArgumentNullException.ThrowIfNull(setting);
         var source = _powerSource();
         var (before, beforeSource) = CurrentValue(setting);
-        var guard = (UnavailableReason(setting) ?? RefuseValue(setting, requested)) is { } reason
+        var guard = (UnavailableReason(setting) ?? RefuseValue(setting, requested, earlierInBatch ?? [])) is { } reason
             ? new GuardResult(requested, null, GuardOutcome.Refused, reason)
             : ValueGuard.Check(setting, requested, source);
         return new ChangePlan(setting, origin, guard, before, beforeSource, _gate.Decide(setting), source)
@@ -264,10 +271,16 @@ public sealed class SafeChangeService
     }
 
     /// <summary>Plans for every setting with a safe default. Settings without one are listed by <see cref="NotResetDirectly"/>.</summary>
-    public IReadOnlyList<ChangePlan> PlanResetToSafeDefaults() =>
-        Settings.Where(s => s.IncludedInReset && s.SafeDefault is not null)
-            .Select(s => Plan(s, s.SafeDefault!.Value, ChangeOrigin.ResetToSafeDefaults))
-            .ToList();
+    public IReadOnlyList<ChangePlan> PlanResetToSafeDefaults()
+    {
+        var plans = new List<ChangePlan>();
+        foreach (var setting in Settings.Where(s => s.IncludedInReset && s.SafeDefault is not null))
+        {
+            plans.Add(Plan(setting, setting.SafeDefault!.Value, ChangeOrigin.ResetToSafeDefaults, plans));
+        }
+
+        return plans;
+    }
 
     /// <summary>Settings in the reset that have no value of their own to reset to (their reset note explains).</summary>
     public IReadOnlyList<SettingDefinition> NotResetDirectly => Settings.Where(s => s.IncludedInReset && s.SafeDefault is null).ToList();
@@ -307,6 +320,12 @@ public sealed class SafeChangeService
         {
             var why = $"The safe range changed since you confirmed (now {ValueGuard.PowerSourceWords(source)}: {setting.DescribeAllowed(source)}). Confirm the change again.";
             return Record(plan, gate, ChangeOutcome.Refused, $"Refused: {setting.Name} {Words(plan)}.", why);
+        }
+
+        // Checked again now: earlier steps of the batch have run and are recorded, so this sees what they did.
+        if (RefuseValue(setting, plan.Guard.Value!.Value, []) is { } refusedNow)
+        {
+            return Record(plan, gate, ChangeOutcome.Refused, $"Refused: {setting.Name} {Words(plan)}.", refusedNow);
         }
 
         var write = Describe(setting, plan.Guard.Value!.Value, plan.RestoreRaw);
@@ -353,16 +372,17 @@ public sealed class SafeChangeService
         }
     }
 
-    private string? RefuseValue(SettingDefinition setting, int value)
+    /// <summary>Fails closed: if the check itself fails, the value is refused.</summary>
+    private string? RefuseValue(SettingDefinition setting, int value, IReadOnlyList<ChangePlan> earlierInBatch)
     {
         try
         {
-            return _reader?.RefuseValue(setting, value);
+            return _reader?.RefuseValue(setting, value, earlierInBatch);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _log.Warn($"Could not check the value for {setting.Name}.", ex);
-            return null;
+            _log.Warn($"Could not check the value for {setting.Name}; refusing it.", ex);
+            return $"Ally Tuner could not check whether this value is safe ({ex.Message}), so it is refused.";
         }
     }
 

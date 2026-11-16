@@ -186,7 +186,15 @@ public sealed record ConfirmationText(
         var dryRun = plans.Count == 0 || plans.All(p => p.Gate.IsDryRun);
 
         var lines = new List<string>();
-        lines.AddRange(plans.Select(p => p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}"));
+        foreach (var p in plans)
+        {
+            lines.Add(p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}");
+            if (p.CanProceed && p.Guard.Outcome == GuardOutcome.Clamped)
+            {
+                lines.Add(p.Guard.Note);
+            }
+        }
+
         lines.AddRange(extraLines);
 
         var restart = plans.Where(p => p.CanProceed && p.Setting.Risk == ChangeRisk.NeedsRestart).Select(p => p.Setting.Name).ToList();

@@ -114,8 +114,8 @@ public sealed partial class PowerPage : Page
         foreach (var limit in Limits)
         {
             var range = limit.RangeFor(source)!;
-            var last = App.Services.Journal.LastApplied(limit.Id);
-            var start = last ?? PowerProfiles.PerformanceMax.Values[limit.Id];
+            var last = App.Services.Journal.LatestDone(limit.Id);
+            var start = last?.Value ?? PowerProfiles.PerformanceMax.Values[limit.Id];
             var value = new TextBlock { Style = (Style)Res["CardValueTextStyle"], FontSize = 20, MinWidth = 70, VerticalAlignment = VerticalAlignment.Center };
             var slider = new Slider
             {
@@ -138,7 +138,7 @@ public sealed partial class PowerPage : Page
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.Children.Add(new TextBlock
             {
-                Text = $"{limit.Name}\n{limit.DescribeAllowed(source)}{(last is { } l ? $" · last set {limit.Format(l)}" : string.Empty)}",
+                Text = $"{limit.Name}\n{limit.DescribeAllowed(source)}{(last is null ? string.Empty : " · " + LowerFirst(LastDoneText(limit)))}",
                 Style = (Style)Res["CardLabelTextStyle"],
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -154,6 +154,8 @@ public sealed partial class PowerPage : Page
         panel.Children.Add(apply);
         return Card(panel);
     }
+
+    private static string LowerFirst(string text) => text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
 
     private async void ApplyLimits_Click(object sender, RoutedEventArgs e)
     {
@@ -358,6 +360,7 @@ internal static class FanCurveEditor
         if (problems.Count > 0)
         {
             App.Services.Log.Warn($"Custom fan curve not saved: {string.Join(" ", problems)}");
+            await SafetyDialogs.ShowMessageAsync(root, "Curve not saved", $"It would be quieter than the firmware somewhere: {string.Join(" ", problems.Take(3))} Raise those points and try again.");
             return null;
         }
 

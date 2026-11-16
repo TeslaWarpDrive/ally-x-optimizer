@@ -68,11 +68,23 @@ internal static class SettingCards
             return Chip(brush, $"Now: {setting.Format(state.Value)}");
         }
 
-        var last = App.Services.Journal.LastApplied(setting.Id);
-        return last is { } v2
-            ? Chip("StatusNeutralBrush", $"Last set: {setting.Format(v2)}")
-            : Chip("StatusNeutralBrush", "Not reported by the device");
+        return Chip(LastDoneBrush(setting.Id), LastDoneText(setting));
     }
+
+    /// <summary>"Last set: 35 W", "Last simulated: 35 W (not applied)", or that the device does not report it.</summary>
+    public static string LastDoneText(SettingDefinition setting)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        return App.Services.Journal.LatestDone(setting.Id) switch
+        {
+            { Outcome: ChangeOutcome.Applied, Value: { } v } => $"Last set: {setting.Format(v)}",
+            { Outcome: ChangeOutcome.Simulated, Value: { } v } => $"Last simulated: {setting.Format(v)} (not applied)",
+            _ => "Not reported by the device",
+        };
+    }
+
+    private static string LastDoneBrush(string settingId) =>
+        App.Services.Journal.LatestDone(settingId)?.Outcome == ChangeOutcome.Simulated ? "StatusAttentionBrush" : "StatusNeutralBrush";
 
     /// <summary>
     /// A card for a setting with choices: name, chips, description and notes, and one button per other choice.

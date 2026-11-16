@@ -186,7 +186,7 @@ Armoury Crate can override settings. The service and process names come from G-H
 ## 8. AMD graphics (Phase 5 preview)
 
 - **ADLX** is AMD's supported API. Its runtime `amdadlx64.dll` ships with the Adrenalin driver ([ADLX.h L25][adlx-dll]). The Probe only checks that the file exists and reads its version; it does not load it.
-- Available in ADLX 2.0 ([headers][adlx]): Anti-Lag and Anti-Lag Next (`IADLX3DAntiLag`, `IADLX3DAntiLag1`), Radeon Super Resolution (global, via `IADLX3DSettingsServices1`), Radeon Boost, Radeon Chill, AMD Fluid Motion Frames (`IADLX3DSettingsServices2`), FSR (`IADLX3DSettingsServices3`).
+- Available in ADLX 2.0 ([headers][adlx]): Anti-Lag and Anti-Lag Next (`IADLX3DAntiLag`, `IADLX3DAntiLag1`), Radeon Super Resolution (global, from the base `IADLX3DSettingsServices::GetRadeonSuperResolution`, vtable slot 14, which Ally Tuner uses), Radeon Boost, Radeon Chill, AMD Fluid Motion Frames (`IADLX3DSettingsServices2`), FSR (`IADLX3DSettingsServices3`).
 - **HYPR-RX has no ADLX interface** (none of the ADLX 2.0 headers mention it). Phase 5 does both honest options: the controllable parts (Anti-Lag, RSR, Boost) are separate settings, never labelled HYPR-RX, and the page tells Bradley where the HYPR-RX toggle is in AMD Software (§16).
 - Documented conflicts to respect: Anti-Lag cannot run with Chill; RSR needs GPU scaling; on some GPUs RSR cannot run with Boost or Image Sharpening ([I3DSettings.h][adlx-3d]).
 - Auto SR is a Microsoft feature; researched in Phase 5.
@@ -409,7 +409,7 @@ Every control below goes through the safety framework. Changes are clamped, conf
 |---|---|---|---|---|
 | Performance mode | write-only (reads 7) | DEVS `0x00120075` = 0 Balanced / 1 Turbo / 2 Silent | those three only | [GH AsusACPI L72, L169-L173][gh-p4-acpi], Linux asus-wmi L98-L100 |
 | SPL / sPPT / fPPT | write-only (reads 0) | DEVS `0x001200A3`, then `0x001200A0`, then `0x001200C1` (G-Helper's order) | AC 7–35 / 14–45 / 19–55 W; battery 7–35 / 13–45 / 19–55 W | [Linux RC73XA table][lx-armoury-rc73xa], [GH SetPower L349-L405][gh-p4-setpower] |
-| Fan curves (CPU, GPU) | factory curve per mode (DSTS arg 0/1/2) | DEVS `0x00110024` / `0x00110025` with 16 bytes (8 temperatures, then 8 duties). *Firmware curve* re-sends the mode, which is how G-Helper drops a custom curve. | never below **any** factory curve or the fan floor at any temperature; temperatures rise; 0–100 % | [GH SetFanCurve L605-L633][gh-p4-fan], [GH AutoFans L231-L262][gh-p4-autofans] |
+| Fan curves (CPU, GPU) | factory curve per mode (DSTS arg 0/1/2) | DEVS `0x00110024` / `0x00110025` with 16 bytes (8 temperatures, then 8 duties). *Firmware curve* re-sends the mode, which is how G-Helper drops a custom curve: the mode set earlier in the same batch, or the last one set (simulated counts in dry-run). It is refused while no mode is known, rather than guessing one. | never below **any** factory curve or the fan floor anywhere: compared as straight lines between points, at every bend of any of them up to 100 °C; temperatures rise, duties never drop; 0–100 % | [GH SetFanCurve L605-L633][gh-p4-fan], [GH AutoFans L231-L262][gh-p4-autofans] |
 | CPU Boost (AC / battery) | `PowerReadAC/DCValueIndex` PERFBOOSTMODE in the active plan | `PowerWriteAC/DCValueIndex`, then `PowerSetActiveScheme` | Microsoft's values 0–4 | [MS PERFBOOSTMODE][ms-boost], [MS PowerWriteACValueIndex][ms-p4-write], [MS PowerSetActiveScheme][ms-p4-setactive] |
 | Battery Care | write-only (reads 0x01880000) | DEVS `0x00120057` = percent | 40–100 %; 100 removes the limit; recommended 80 | [GH BatteryControl L30-L34, L65-L80][gh-p4-battery] |
 | VRAM | `0x000600C4`: current and option list | DEVS `0x000600C4` = the option's value (MB) | only values on the device's own list, and only while that list equals the reviewed one; restart needed | [GH GetVramOptions/SetVramMem L830-L857][gh-p4-vram], [GH Extra.cs L652-L712][gh-p4-vram-ui] |
@@ -445,14 +445,14 @@ Read through AMD's ADLX C interface (pinned headers, ADLX 2.0.0.125). The read c
 |---|---|---|---|
 | Radeon Anti-Lag | `IADLX3DSettingsServices::GetAntiLag` (3) → IsSupported (3), IsEnabled (4) | `IADLX3DAntiLag::SetEnabled` | recommended on (brief §11); cannot run with Chill ([I3DSettings.h L75][adlx-3d]) |
 | Radeon Super Resolution | `GetRadeonSuperResolution` (14, global) | `IADLX3DRadeonSuperResolution::SetEnabled` | on some GPUs AMD turns Boost off ([L579][adlx-3d]); the confirmation says so |
-| Radeon Boost | `GetBoost` (5) | `IADLX3DBoost::SetEnabled` | cannot run with Chill |
+| Radeon Boost | `GetBoost` (5) | `IADLX3DBoost::SetEnabled` | cannot run with Chill; on some GPUs AMD turns RSR off ([L670-L672][adlx-3d]); the confirmation says so |
 | Radeon Chill | `GetChill` (4) | `IADLX3DChill::SetEnabled` | cannot run with Anti-Lag or Boost ([L295][adlx-3d]) |
 
 Sequence: `ADLXInitialize(ADLX_FULL_VERSION)` → `IADLXSystem::GetGPUs` (slot 1; IADLXSystem has no Acquire/Release) → `IADLXGPUList::At_GPUList(0)` (slot 11) → `IADLXSystem::Get3DSettingsServices` (slot 7) → features → `Release` (slot 1) on everything acquired → `ADLXTerminate`. The slot numbers are counted from the C vtable structs in `ISystem.h` (L606-L627, L1195-L1210) and `I3DSettings.h` (L126-L137, L496-L512, L715-L730, L2353-L2367, L3457-L3479).
 
 Rules:
-- **Read only on request.** The Graphics page reads ADLX when *Read AMD settings* is pressed, and *Apply recommended* reads it as part of that action. Nothing reads it on a timer or at startup. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked.
-- **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first.
+- **Read only on request.** ADLX is read only when *Read AMD settings* is pressed on the Graphics page. Nothing reads it on a timer, at startup or on page load. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked. The slot numbers themselves are checked by a unit test against the pinned headers, downloaded at test time (`AdlxSlotsTests`).
+- **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first. A conflicting feature whose state did not read counts as unknown, not off, so the change is refused until it reads.
 - **HYPR-RX, FSR and Auto SR** are not app-controllable. The page shows where each is set (AMD Software, in-game, Windows Settings).
 - Per-game AMD settings are part of the per-game-profile fast follow.
 

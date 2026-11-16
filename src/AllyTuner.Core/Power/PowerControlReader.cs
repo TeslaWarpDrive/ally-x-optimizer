@@ -21,7 +21,7 @@ public sealed class PowerControlReader : ISettingReader, IWriteDescriber
 
     private readonly Func<DeviceControlFacts> _readFacts;
     private readonly Func<AppSettings> _settings;
-    private readonly Func<int?> _lastAppliedMode;
+    private readonly Func<int?> _currentMode;
     private readonly IAppLog _log;
     private readonly Func<DateTimeOffset> _clock;
     private readonly TimeSpan _maxAge;
@@ -32,18 +32,18 @@ public sealed class PowerControlReader : ISettingReader, IWriteDescriber
     public PowerControlReader(
         Func<DeviceControlFacts> readFacts,
         Func<AppSettings> settings,
-        Func<int?> lastAppliedMode,
+        Func<int?> currentMode,
         IAppLog log,
         Func<DateTimeOffset>? clock = null,
         TimeSpan? maxAge = null)
     {
         ArgumentNullException.ThrowIfNull(readFacts);
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(lastAppliedMode);
+        ArgumentNullException.ThrowIfNull(currentMode);
         ArgumentNullException.ThrowIfNull(log);
         _readFacts = readFacts;
         _settings = settings;
-        _lastAppliedMode = lastAppliedMode;
+        _currentMode = currentMode;
         _log = log;
         _clock = clock ?? (() => DateTimeOffset.Now);
         _maxAge = maxAge ?? DefaultMaxAge;
@@ -112,13 +112,29 @@ public sealed class PowerControlReader : ISettingReader, IWriteDescriber
         return setting.ReadBack == ValueReadBack.Readable ? state.BlockReason : state.Unavailable;
     }
 
-    /// <summary>Fan curves only: the Turbo or custom curve must exist and never be quieter than any factory curve.</summary>
-    public string? RefuseValue(SettingDefinition setting, int value)
+    public const string UnknownModeReason =
+        "Ally Tuner does not know the current performance mode, so it cannot re-send it to bring back the firmware fan curve. Set the mode first, or apply a profile (it sets the mode, then the fans).";
+
+    public string? RefuseValue(SettingDefinition setting, int value) => RefuseValue(setting, value, []);
+
+    /// <summary>
+    /// Fan curves only. The firmware curve needs a known mode to re-send: the mode chosen earlier in the same batch,
+    /// or the last mode Ally Tuner set (simulated counts in dry-run). The Turbo or custom curve must exist and never
+    /// be quieter than any factory curve or the fan floor.
+    /// </summary>
+    public string? RefuseValue(SettingDefinition setting, int value, IReadOnlyList<ChangePlan> earlierInBatch)
     {
         ArgumentNullException.ThrowIfNull(setting);
-        if (setting.Id is not (PowerControls.CpuFanCurveId or PowerControls.GpuFanCurveId) || value == PowerControls.FirmwareCurve)
+        ArgumentNullException.ThrowIfNull(earlierInBatch);
+        if (setting.Id is not (PowerControls.CpuFanCurveId or PowerControls.GpuFanCurveId))
         {
             return null;
+        }
+
+        if (value == PowerControls.FirmwareCurve)
+        {
+            var modeInBatch = earlierInBatch.Any(p => p.Setting.Id == TunableSettings.PerformanceModeId && p.CanProceed);
+            return modeInBatch || _currentMode() is not null ? null : UnknownModeReason;
         }
 
         var curve = CurveFor(setting, value, Facts);
@@ -164,15 +180,14 @@ public sealed class PowerControlReader : ISettingReader, IWriteDescriber
         };
     }
 
-    private string DescribeFan(SettingDefinition setting, int value)
+    private string? DescribeFan(SettingDefinition setting, int value)
     {
         if (value == PowerControls.FirmwareCurve)
         {
-            var mode = _lastAppliedMode();
-            var modeText = mode is { } m
-                ? $"the current mode, {TunableSettings.PerformanceMode.Format(m)}"
-                : "Balanced: Ally Tuner has not set the mode yet";
-            return string.Create(CultureInfo.InvariantCulture, $"send DEVS 0x{AsusEndpointCatalogIds.PerformanceMode:X8} = {mode ?? 0} ({modeText}) again, so the firmware uses its own fan curve");
+            // Described when the step runs, so a mode set earlier in the same batch is already recorded.
+            return _currentMode() is { } mode
+                ? string.Create(CultureInfo.InvariantCulture, $"send DEVS 0x{AsusEndpointCatalogIds.PerformanceMode:X8} = {mode} (the current mode, {TunableSettings.PerformanceMode.Format(mode)}) again, so the firmware uses its own fan curve")
+                : null;
         }
 
         var curve = CurveFor(setting, value, Facts);

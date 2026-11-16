@@ -20,6 +20,9 @@ public sealed class SettingRouter : ISettingReader, IWriteDescriber
 
     public string? RefuseValue(SettingDefinition setting, int value) => Route(setting)?.RefuseValue(setting, value);
 
+    public string? RefuseValue(SettingDefinition setting, int value, IReadOnlyList<ChangePlan> earlierInBatch) =>
+        Route(setting)?.RefuseValue(setting, value, earlierInBatch);
+
     public string? DescribeWrite(SettingDefinition setting, int value) => (Route(setting) as IWriteDescriber)?.DescribeWrite(setting, value);
 
     public string? CaptureRaw(SettingDefinition setting) => (Route(setting) as IWriteDescriber)?.CaptureRaw(setting);

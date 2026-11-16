@@ -15,13 +15,19 @@ public sealed record StoredFanCurve(IReadOnlyList<int> TemperaturesC, IReadOnlyL
 }
 
 /// <summary>
-/// The safety rules for custom fan curves (RESEARCH §6.3): 8 points, temperatures rising, duty 0-100 %, and at every
-/// point at least as fast as every factory curve (Balanced, Silent and Turbo) and the fan floor. A curve that passes
-/// is never quieter than what the firmware itself would run, whatever mode is active.
+/// The safety rules for custom fan curves (RESEARCH §6.3): 8 points, temperatures rising, duties never falling,
+/// duty 0-100 %, and nowhere quieter than any factory curve (Balanced, Silent, Turbo) or the fan floor. Curves are
+/// compared as the firmware runs them, as straight lines between points (held flat after the last), and the floor as
+/// straight lines between its 10 °C steps. Because all of these are made of straight pieces, checking every point
+/// where any of them bends (from the custom curve's first point up to 100 °C) checks the whole curve, so a curve
+/// edited by hand in settings.json cannot dip below the firmware between its own points.
 /// </summary>
 public static class FanCurveRules
 {
     public const int Points = 8;
+
+    /// <summary>Highest temperature checked: the fan floor's last step.</summary>
+    public const int MaxCheckedTemperatureC = 100;
 
     /// <summary>The 16 bytes G-Helper sends with DEVS: 8 temperatures, then 8 duties (AsusACPI.cs #L605-L633).</summary>
     public static byte[] ToDevsBytes(FanCurve curve)
@@ -30,7 +36,7 @@ public static class FanCurveRules
         return [.. curve.Points.Select(p => p.TemperatureC), .. curve.Points.Select(p => p.DutyPercent)];
     }
 
-    /// <summary>The duty a curve asks for at a temperature: the last point at or below it (0 below the first point).</summary>
+    /// <summary>The duty of the last point at or below a temperature (0 below the first point). A step reading.</summary>
     public static int DutyAt(FanCurve curve, int temperatureC)
     {
         ArgumentNullException.ThrowIfNull(curve);
@@ -46,7 +52,7 @@ public static class FanCurveRules
         return duty;
     }
 
-    /// <summary>The fan floor at a temperature: the floor step at or below it (30, 40, … 100 °C; 0 below 30 °C).</summary>
+    /// <summary>The floor step at or below a temperature (30, 40, … 100 °C; 0 below 30 °C). A step reading.</summary>
     public static int FloorAt(FanFloor? floor, int temperatureC)
     {
         if (floor is null)
@@ -66,11 +72,24 @@ public static class FanCurveRules
         return duty;
     }
 
-    /// <summary>The lowest duty allowed at a temperature: the highest of every factory curve and the floor.</summary>
+    /// <summary>A curve read as straight lines between its points, held flat before the first and after the last.</summary>
+    public static double LinearDutyAt(FanCurve curve, double temperatureC)
+    {
+        ArgumentNullException.ThrowIfNull(curve);
+        return Linear(curve.Points.Select(p => ((double)p.TemperatureC, (double)p.DutyPercent)).ToList(), temperatureC);
+    }
+
+    /// <summary>The floor read as straight lines between its 10 °C steps (stricter than a step reading).</summary>
+    public static double LinearFloorAt(FanFloor? floor, double temperatureC) => floor is null
+        ? 0
+        : Linear(floor.DutyPercent.Select((d, i) => ((double)FanFloor.TemperatureAt(i), (double)d)).ToList(), temperatureC);
+
+    /// <summary>The lowest duty allowed at a temperature, rounded up: the highest of every factory curve and the floor.</summary>
     public static int MinimumAt(IReadOnlyList<FanCurve> factoryCurves, FanFloor? floor, int temperatureC)
     {
         ArgumentNullException.ThrowIfNull(factoryCurves);
-        return factoryCurves.Select(c => DutyAt(c, temperatureC)).Append(FloorAt(floor, temperatureC)).Max();
+        var minimum = factoryCurves.Select(c => LinearDutyAt(c, temperatureC)).Append(LinearFloorAt(floor, temperatureC)).Max();
+        return (int)Math.Ceiling(minimum - 1e-9);
     }
 
     /// <summary>Every rule the curve breaks, in plain words. Empty means it is safe to send.</summary>
@@ -98,15 +117,30 @@ public static class FanCurveRules
                 problems.Add($"Point {i + 1}: the temperatures must rise ({curve.Points[i - 1].TemperatureC} °C, then {point.TemperatureC} °C).");
             }
 
+            if (i > 0 && point.DutyPercent < curve.Points[i - 1].DutyPercent)
+            {
+                problems.Add($"Point {i + 1}: the fan speed must not drop as it gets hotter ({curve.Points[i - 1].DutyPercent} %, then {point.DutyPercent} %).");
+            }
+
             if (point.DutyPercent > 100)
             {
                 problems.Add($"Point {i + 1}: {point.DutyPercent} % is above 100 %.");
             }
+        }
 
-            var minimum = MinimumAt(factoryCurves, floor, point.TemperatureC);
-            if (point.DutyPercent < minimum)
+        if (problems.Count > 0)
+        {
+            return problems;
+        }
+
+        foreach (var t in Breakpoints(curve, factoryCurves))
+        {
+            var custom = LinearDutyAt(curve, t);
+            var minimum = factoryCurves.Select(c => LinearDutyAt(c, t)).Append(LinearFloorAt(floor, t)).Max();
+            if (custom + 1e-9 < minimum)
             {
-                problems.Add($"Point {i + 1}: {point.DutyPercent} % at {point.TemperatureC} °C is below the firmware's {minimum} %.");
+                problems.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"At {t:0.#} °C the curve gives {custom:0.#} %, below the firmware's {minimum:0.#} %."));
             }
         }
 
@@ -115,13 +149,58 @@ public static class FanCurveRules
 
     /// <summary>
     /// A starting curve for the editor: the temperatures of <paramref name="baseCurve"/> with every duty raised to the
-    /// minimum allowed there, so the editor can only make it faster.
+    /// minimum allowed there and never below the point before, so the editor can only make it faster.
     /// </summary>
     public static FanCurve StartingPoint(FanCurve baseCurve, IReadOnlyList<FanCurve> factoryCurves, FanFloor? floor)
     {
         ArgumentNullException.ThrowIfNull(baseCurve);
-        return new FanCurve(baseCurve.Points
-            .Select(p => new FanCurvePoint(p.TemperatureC, (byte)Math.Min(100, Math.Max(p.DutyPercent, MinimumAt(factoryCurves, floor, p.TemperatureC)))))
-            .ToList());
+        var points = new List<FanCurvePoint>();
+        var previous = 0;
+        foreach (var p in baseCurve.Points)
+        {
+            var duty = Math.Min(100, Math.Max(previous, Math.Max(p.DutyPercent, MinimumAt(factoryCurves, floor, p.TemperatureC))));
+            points.Add(new FanCurvePoint(p.TemperatureC, (byte)duty));
+            previous = duty;
+        }
+
+        return new FanCurve(points);
+    }
+
+    /// <summary>Every temperature where the custom curve, a factory curve or the floor bends, within the checked range.</summary>
+    private static IEnumerable<double> Breakpoints(FanCurve curve, IReadOnlyList<FanCurve> factoryCurves)
+    {
+        var from = curve.Points[0].TemperatureC;
+        return curve.Points.Select(p => (double)p.TemperatureC)
+            .Concat(factoryCurves.SelectMany(c => c.Points).Select(p => (double)p.TemperatureC))
+            .Concat(Enumerable.Range(0, 8).Select(i => (double)FanFloor.TemperatureAt(i)))
+            .Append(MaxCheckedTemperatureC)
+            .Where(t => t >= from && t <= MaxCheckedTemperatureC)
+            .Distinct()
+            .Order();
+    }
+
+    private static double Linear(List<(double T, double D)> points, double t)
+    {
+        if (points.Count == 0)
+        {
+            return 0;
+        }
+
+        if (t <= points[0].T)
+        {
+            return points[0].D;
+        }
+
+        for (var i = 1; i < points.Count; i++)
+        {
+            var (t0, d0) = points[i - 1];
+            var (t1, d1) = points[i];
+            if (t <= t1)
+            {
+                return t1 <= t0 ? Math.Max(d0, d1) : d0 + ((d1 - d0) * (t - t0) / (t1 - t0));
+            }
+        }
+
+        return points[^1].D;
     }
 }

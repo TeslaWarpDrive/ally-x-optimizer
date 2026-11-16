@@ -16,13 +16,16 @@ public sealed class PowerControlReaderTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "allytuner-tests", Guid.NewGuid().ToString("N"));
     private readonly RecordingLog _log = new();
     private AppSettings _settings = AppSettings.Defaults;
-    private int? _lastMode;
+    private readonly ChangeJournal _journal;
 
     public PowerControlReaderTests()
     {
         Facts = DeviceControlFacts.Decode(true, BradleyAllyProbe.OnBattery, Plan, 2, 1);
-        Reader = new PowerControlReader(() => Facts, () => _settings, () => _lastMode, _log);
-        Service = new SafeChangeService(PowerControls.All, new ChangeJournal(_dir, _log), new WriteGate(() => _settings), NoHardwareWriter.Instance, _log,
+        _journal = new ChangeJournal(_dir, _log);
+
+        // As in the app in dry-run: the mode to re-send is the last one set or simulated.
+        Reader = new PowerControlReader(() => Facts, () => _settings, () => _journal.LatestDone(TunableSettings.PerformanceModeId)?.Value, _log);
+        Service = new SafeChangeService(PowerControls.All, _journal, new WriteGate(() => _settings), NoHardwareWriter.Instance, _log,
             () => PowerSource.AC, Reader, describer: Reader);
     }
 
@@ -107,14 +110,117 @@ public sealed class PowerControlReaderTests : IDisposable
     }
 
     [Fact]
-    public async Task Firmware_fan_curve_resends_the_mode()
+    public void Firmware_fan_curve_alone_is_refused_while_the_mode_is_unknown()
     {
-        var unknown = await Run(Service.Plan(PowerControls.GpuFanCurve, PowerControls.FirmwareCurve));
-        Assert.Contains("send DEVS 0x00120075 = 0 (Balanced: Ally Tuner has not set the mode yet) again, so the firmware uses its own fan curve", unknown.Detail, StringComparison.Ordinal);
+        // Re-sending a guessed mode would change the mode behind the person's back, so it is refused instead.
+        var plan = Service.Plan(PowerControls.GpuFanCurve, PowerControls.FirmwareCurve);
+        Assert.False(plan.CanProceed);
+        Assert.Equal(PowerControlReader.UnknownModeReason, plan.Guard.Note);
+    }
 
-        _lastMode = 1;
-        var known = await Run(Service.Plan(PowerControls.GpuFanCurve, PowerControls.FirmwareCurve));
-        Assert.Contains("= 1 (the current mode, Turbo) again", known.Detail, StringComparison.Ordinal);
+    [Theory]
+    [InlineData(2, "Silent")]
+    [InlineData(1, "Turbo")]
+    [InlineData(0, "Balanced")]
+    public async Task Firmware_fan_curve_resends_the_mode_chosen_earlier_in_the_same_batch(int mode, string label)
+    {
+        var profile = PowerProfiles.Create("Mode then fans", new Dictionary<string, int>
+        {
+            [TunableSettings.PerformanceModeId] = mode,
+            [PowerControls.CpuFanCurveId] = PowerControls.FirmwareCurve,
+            [PowerControls.GpuFanCurveId] = PowerControls.FirmwareCurve,
+        });
+        var plans = PowerProfiles.Plan(Service, profile);
+        Assert.All(plans, p => Assert.True(p.CanProceed, p.Guard.Note)); // the batch's mode makes the fan steps possible
+
+        var records = await Service.ExecuteAsync(ConfirmationText.ConfirmBatch(plans));
+        Assert.Equal(3, records.Count);
+        Assert.All(records.Skip(1), r =>
+        {
+            Assert.Equal(ChangeOutcome.Simulated, r.Outcome);
+            Assert.Contains($"send DEVS 0x00120075 = {mode} (the current mode, {label}) again, so the firmware uses its own fan curve", r.Detail, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public async Task Built_in_silent_profile_keeps_silent_for_its_fan_steps()
+    {
+        var records = await Service.ExecuteAsync(ConfirmationText.ConfirmBatch(PowerProfiles.Plan(Service, PowerProfiles.Silent)));
+        Assert.All(records.Where(r => r.SettingId != TunableSettings.PerformanceModeId), r =>
+            Assert.Contains("= 2 (the current mode, Silent) again", r.Detail, StringComparison.Ordinal));
+        Assert.DoesNotContain(records, r => r.Detail.Contains("0x00120075 = 0", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Undo_of_a_simulated_fan_step_resends_the_current_mode()
+    {
+        await Run(Service.Plan(TunableSettings.PerformanceMode, 2)); // Silent
+        var turboFan = await Run(Service.Plan(PowerControls.CpuFanCurve, PowerControls.TurboCurve));
+
+        var undo = Service.PlanUndo(turboFan).Plan!; // value before unknown: back to the firmware curve (safe default)
+        Assert.Equal(PowerControls.FirmwareCurve, undo.Guard.Value);
+        var undone = await Run(undo);
+        Assert.Contains("= 2 (the current mode, Silent) again", undone.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_batch_whose_mode_step_is_refused_at_run_time_refuses_its_firmware_fan_step()
+    {
+        var plans = PowerProfiles.Plan(Service, PowerProfiles.Balanced);
+        Facts = Facts with { AsusAvailable = false }; // the device goes away between confirming and running
+        Reader.Invalidate();
+
+        var records = await Service.ExecuteAsync(ConfirmationText.ConfirmBatch(plans));
+        Assert.All(records, r => Assert.Equal(ChangeOutcome.Simulated, r.Outcome)); // gate re-check passes; ASUS is checked at plan time
+        // The fan steps saw the batch's (simulated) mode, never a guessed 0 for an unknown mode.
+        Assert.All(records.Skip(1), r => Assert.Contains("(the current mode, Balanced)", r.Detail, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Reset_to_safe_defaults_sends_balanced_then_the_firmware_fans()
+    {
+        var plans = Service.PlanResetToSafeDefaults();
+        Assert.All(plans, p => Assert.True(p.CanProceed, p.Guard.Note));
+        var records = await Service.ExecuteAsync(ConfirmationText.ConfirmReset(plans));
+        Assert.Equal(TunableSettings.PerformanceModeId, records[0].SettingId);
+        Assert.All(records.Skip(1), r => Assert.Contains("= 0 (the current mode, Balanced) again", r.Detail, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Last_done_includes_simulated_values()
+    {
+        Assert.Null(_journal.LatestDone(TunableSettings.SustainedPowerId));
+        await Run(Service.Plan(TunableSettings.SustainedPower, 30));
+        var latest = _journal.LatestDone(TunableSettings.SustainedPowerId);
+        Assert.Equal(30, latest!.Value);
+        Assert.Equal(ChangeOutcome.Simulated, latest.Outcome);
+        Assert.Null(_journal.LastApplied(TunableSettings.SustainedPowerId));
+    }
+
+    [Fact]
+    public void A_value_check_that_throws_refuses_the_value()
+    {
+        var service = new SafeChangeService(PowerControls.All, _journal, new WriteGate(() => _settings), NoHardwareWriter.Instance, _log,
+            () => PowerSource.AC, new ThrowingValueCheck());
+        var plan = service.Plan(TunableSettings.SustainedPower, 30);
+        Assert.False(plan.CanProceed);
+        Assert.Contains("could not check whether this value is safe", plan.Guard.Note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Batch_confirmations_include_the_clamp_sentence()
+    {
+        var plans = new[] { Service.Plan(TunableSettings.SlowBoostPower, 13) }; // 13 W is below the AC minimum
+        var text = ConfirmationText.ForBatch("Apply power limits", "Apply", "Simulate", plans, [], "Nothing.");
+        Assert.Contains("Slow boost limit (sPPT): unknown → 14 W", text.Lines);
+        Assert.Contains(text.Lines, l => l.StartsWith("You asked for 13 W", StringComparison.Ordinal) && l.Contains("set to 14 W", StringComparison.Ordinal));
+    }
+
+    private sealed class ThrowingValueCheck : ISettingReader
+    {
+        public int? TryRead(SettingDefinition setting) => null;
+
+        public string? RefuseValue(SettingDefinition setting, int value) => throw new InvalidOperationException("boom");
     }
 
     [Fact]
@@ -130,7 +236,8 @@ public sealed class PowerControlReaderTests : IDisposable
         Assert.False(unsafeCurve.CanProceed);
         Assert.StartsWith("This curve would be unsafe:", unsafeCurve.Guard.Note, StringComparison.Ordinal);
 
-        var safe = FanCurveRules.StartingPoint(balanced, Facts.FactoryCurvesFor(AsusEndpointCatalogIds.CpuFanCurve), Facts.FloorFor(AsusEndpointCatalogIds.CpuFanCurve));
+        var turbo = Facts.FactoryCurves[(AsusEndpointCatalogIds.CpuFanCurve, 2)];
+        var safe = FanCurveRules.StartingPoint(turbo, Facts.FactoryCurvesFor(AsusEndpointCatalogIds.CpuFanCurve), Facts.FloorFor(AsusEndpointCatalogIds.CpuFanCurve));
         _settings = _settings with { CustomFanCurves = new Dictionary<string, StoredFanCurve> { [PowerControls.CpuFanCurveId] = StoredFanCurve.From(safe) } };
         Assert.True(Service.Plan(PowerControls.CpuFanCurve, PowerControls.CustomCurve).CanProceed);
     }
