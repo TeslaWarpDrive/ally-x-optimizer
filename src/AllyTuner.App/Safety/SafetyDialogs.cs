@@ -67,6 +67,26 @@ internal static class SafetyDialogs
         }
     }
 
+    /// <summary>Shows another dialog (an editor) the same way: one at a time, and B on the controller cancels it.</summary>
+    public static async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
+    {
+        ArgumentNullException.ThrowIfNull(dialog);
+        if (Current is not null)
+        {
+            return ContentDialogResult.None;
+        }
+
+        Current = dialog;
+        try
+        {
+            return await dialog.ShowAsync();
+        }
+        finally
+        {
+            Current = null;
+        }
+    }
+
     public static Task ShowMessageAsync(XamlRoot root, string title, string message) =>
         ConfirmAsync(root, new ConfirmationText(title, [message], null, "OK", true, false));
 

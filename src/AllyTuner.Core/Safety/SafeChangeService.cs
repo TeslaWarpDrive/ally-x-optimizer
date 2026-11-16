@@ -23,6 +23,9 @@ public interface ISettingReader
 
     /// <summary>Why the setting cannot be changed on this device right now (for example locked by policy), or null.</summary>
     string? UnavailableReason(SettingDefinition setting) => null;
+
+    /// <summary>Why this particular value cannot be used here (for example a fan curve quieter than the firmware's), or null.</summary>
+    string? RefuseValue(SettingDefinition setting, int value) => null;
 }
 
 /// <summary>Describes exactly what a write would do (registry value, feature, API call), for the change log and dry-run.</summary>
@@ -129,7 +132,7 @@ public sealed class SafeChangeService
         ArgumentNullException.ThrowIfNull(setting);
         var source = _powerSource();
         var (before, beforeSource) = CurrentValue(setting);
-        var guard = UnavailableReason(setting) is { } reason
+        var guard = (UnavailableReason(setting) ?? RefuseValue(setting, requested)) is { } reason
             ? new GuardResult(requested, null, GuardOutcome.Refused, reason)
             : ValueGuard.Check(setting, requested, source);
         return new ChangePlan(setting, origin, guard, before, beforeSource, _gate.Decide(setting), source)
@@ -308,7 +311,12 @@ public sealed class SafeChangeService
 
         var write = Describe(setting, plan.Guard.Value!.Value, plan.RestoreRaw);
         var detail = JoinDetail(gate.Reason, plan.Guard.Outcome == GuardOutcome.Clamped ? plan.Guard.Note : null, plan.Note,
-            by == ConfirmedBy.ReApplyPolicy ? "Re-applied by the override policy (a value you confirmed earlier)." : null,
+            by switch
+            {
+                ConfirmedBy.ReApplyPolicy => "Re-applied by the override policy (a value you confirmed earlier).",
+                ConfirmedBy.AutoApply => "Applied automatically when the Ally was plugged in (you turned on auto-apply for this profile).",
+                _ => null,
+            },
             write is null ? null : (gate.IsDryRun ? $"Would {write}." : $"Writes: {write}."));
 
         if (gate.IsDryRun)
@@ -341,6 +349,19 @@ public sealed class SafeChangeService
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.Warn($"Could not describe the write for {setting.Name}.", ex);
+            return null;
+        }
+    }
+
+    private string? RefuseValue(SettingDefinition setting, int value)
+    {
+        try
+        {
+            return _reader?.RefuseValue(setting, value);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warn($"Could not check the value for {setting.Name}.", ex);
             return null;
         }
     }

@@ -62,6 +62,9 @@ public enum ConfirmedBy
 
     /// <summary>The override policy "re-apply" re-applied a value the person confirmed earlier.</summary>
     ReApplyPolicy,
+
+    /// <summary>The AC profile was applied on plugging in, which the person turned on (and confirmed) in Settings.</summary>
+    AutoApply,
 }
 
 /// <summary>
@@ -227,6 +230,22 @@ public sealed record ConfirmationText(
 
     /// <summary>Call only after the person agreed to <see cref="ForReset"/>. Refused plans are left out.</summary>
     public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans) => ConfirmBatch(plans);
+
+    /// <summary>
+    /// Confirms an automatic profile apply on plugging in. Allowed only while the person has auto-apply turned on
+    /// (they confirmed it when turning it on); refused plans are left out, and the gate still decides dry-run.
+    /// </summary>
+    public static ConfirmedChange ConfirmAutoApply(IReadOnlyList<ChangePlan> plans, Settings.AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (!settings.AutoApplyOnAc || settings.AcProfileId is null)
+        {
+            throw new InvalidOperationException("Auto-apply is off, so nothing may be applied without a confirmation.");
+        }
+
+        return new ConfirmedChange(plans.Where(p => p.CanProceed).ToList(), ConfirmedBy.AutoApply);
+    }
 
     /// <summary>Call only after the person agreed to <see cref="ForBatch"/>. Refused plans are left out.</summary>
     public static ConfirmedChange ConfirmBatch(IReadOnlyList<ChangePlan> plans)

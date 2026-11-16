@@ -20,6 +20,7 @@ This document is the source of truth for every hardware ID, method, buffer layou
 12. [Safety rules derived from this research](#12-safety-rules-derived-from-this-research)
 13. [Bradley's Probe results (2026-11-15)](#13-bradleys-probe-results-2026-11-15)
 14. [Windows tweaks (Phase 3)](#14-windows-tweaks-phase-3)
+15. [ASUS and power controls (Phase 4)](#15-asus-and-power-controls-phase-4)
 
 ---
 
@@ -397,3 +398,40 @@ Rules that follow:
 [ms-dxgi]: https://learn.microsoft.com/windows/win32/api/dxgi/ns-dxgi-dxgi_adapter_desc1
 [ms-vc]: https://learn.microsoft.com/windows/win32/cimwin32prov/win32-videocontroller
 [ms-svc]: https://learn.microsoft.com/windows/win32/cimwin32prov/win32-service
+
+## 15. ASUS and power controls (Phase 4)
+
+Every control below goes through the safety framework. Changes are clamped, confirmed, logged and reversible, and in this build every one is a **dry-run** (`LiveWritesInThisBuild` = false). The change log records the exact call each change *would* make, for example `Would send DEVS 0x001200A3 = 35 (35 W) through ATKACPI.` No code in this build sends DEVS or writes a power setting; the read-only guard tests still enforce that. The first live write of each control waits for Bradley to watch it on the Ally.
+
+| Control | Read | Write it would make | Limits | Sources |
+|---|---|---|---|---|
+| Performance mode | write-only (reads 7) | DEVS `0x00120075` = 0 Balanced / 1 Turbo / 2 Silent | those three only | [GH AsusACPI L72, L169-L173][gh-p4-acpi], Linux asus-wmi L98-L100 |
+| SPL / sPPT / fPPT | write-only (reads 0) | DEVS `0x001200A3`, then `0x001200A0`, then `0x001200C1` (G-Helper's order) | AC 7–35 / 14–45 / 19–55 W; battery 7–35 / 13–45 / 19–55 W | [Linux RC73XA table][lx-armoury-rc73xa], [GH SetPower L349-L405][gh-p4-setpower] |
+| Fan curves (CPU, GPU) | factory curve per mode (DSTS arg 0/1/2) | DEVS `0x00110024` / `0x00110025` with 16 bytes (8 temperatures, then 8 duties). *Firmware curve* re-sends the mode, which is how G-Helper drops a custom curve. | never below **any** factory curve or the fan floor at any temperature; temperatures rise; 0–100 % | [GH SetFanCurve L605-L633][gh-p4-fan], [GH AutoFans L231-L262][gh-p4-autofans] |
+| CPU Boost (AC / battery) | `PowerReadAC/DCValueIndex` PERFBOOSTMODE in the active plan | `PowerWriteAC/DCValueIndex`, then `PowerSetActiveScheme` | Microsoft's values 0–4 | [MS PERFBOOSTMODE][ms-boost], [MS PowerWriteACValueIndex][ms-p4-write], [MS PowerSetActiveScheme][ms-p4-setactive] |
+| Battery Care | write-only (reads 0x01880000) | DEVS `0x00120057` = percent | 40–100 %; 100 removes the limit; recommended 80 | [GH BatteryControl L30-L34, L65-L80][gh-p4-battery] |
+| VRAM | `0x000600C4`: current and option list | DEVS `0x000600C4` = the option's value (MB) | only values on the device's own list, and only while that list equals the reviewed one; restart needed | [GH GetVramOptions/SetVramMem L830-L857][gh-p4-vram], [GH Extra.cs L652-L712][gh-p4-vram-ui] |
+| CPU cores | `0x001200D2` (current), `D3` (max), `D4` (min) | DEVS `0x001200D2` = `(E << 8) | P` | between the reviewed min (1 P + 0 E) and max (3 P + 5 E), at least one P-core, only while the device reports that range; restart needed | [GH GetCores/SetCores L859-L878][gh-p4-cores], [GH Extra.cs L590-L634][gh-p4-cores-ui] |
+
+**Profiles.** Built-in: **Performance Max**, Balanced and Silent. Performance Max is Turbo, the firmware's Turbo fan curve, SPL 35 W, sPPT 45 W, fPPT 55 W, and CPU Boost Aggressive. Those limits are the values Linux asus-armoury starts the RC73XA at when plugged in: no AC defaults are listed, so it uses each maximum ([asus-armoury.c L1012-L1026][lx-p4-acinit]). A profile is applied as one confirmed batch, in G-Helper's order: mode, fans, then the limits ([ModeControl L120-L167][gh-p4-mode]). Saved profiles live in settings.json and export/import as JSON. Imports get fresh IDs and never replace anything.
+
+**Auto-apply on AC.** Off by default, and turning it on asks first. When it is on, the plugged-in profile is applied on the change to AC through the same checks, logged with that reason, and is a dry-run in this build.
+
+**Not changed by Reset to Safe Defaults:** CPU Boost, Battery Care, VRAM and cores. Their undo is in the change log; VRAM, cores and CPU Boost are read back, so the value before is known. Reset covers the mode, the fans (firmware curve) and the power limits (via the mode).
+
+**Hypotheses still to check in the watched dry-run (§6.2):** that re-sending the mode restores the firmware's own power limits and fan curve, and that Battery Care holds the charge near the limit.
+
+[gh-p4-acpi]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L169-L173
+[gh-p4-setpower]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L349-L405
+[gh-p4-fan]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L605-L633
+[gh-p4-autofans]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L231-L262
+[gh-p4-battery]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Battery/BatteryControl.cs#L65-L80
+[gh-p4-vram]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L830-L857
+[gh-p4-vram-ui]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Extra.cs#L652-L712
+[gh-p4-cores]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L859-L878
+[gh-p4-cores-ui]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Extra.cs#L590-L634
+[gh-p4-mode]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L120-L167
+[lx-p4-acinit]: https://github.com/torvalds/linux/blob/fa2933aac170dd19c6a7f0d7b81a8f537e40915c/drivers/platform/x86/asus-armoury.c#L1012-L1026
+[ms-p4-write]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwriteacvalueindex
+[ms-p4-setactive]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetactivescheme
+

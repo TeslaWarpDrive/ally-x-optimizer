@@ -118,4 +118,13 @@ public class PlatformSmokeTests
         Assert.DoesNotContain(AllyTuner.Core.Tweaks.StartupApps.Group, facts.Failed);
         Assert.NotNull(facts.StartupEntries);
     }
+
+    [Fact]
+    public void Device_control_facts_read_without_asus_calls_on_an_unsupported_machine()
+    {
+        var facts = new DeviceControlFactsReader(Log, () => false).Read();
+        Assert.False(facts.AsusAvailable);
+        Assert.Null(facts.Vram);
+        Assert.Empty(facts.FactoryCurves);
+    }
 }
