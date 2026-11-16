@@ -156,13 +156,12 @@
                   TextWrapping="Wrap"
                   Foreground="{StaticResource AuroraTextBrush}" />
             </StackPanel>
+            <!-- TouchButtonStyle: 56 px and the same 3 px focus ring as every other button. -->
             <Button
                 Grid.Column="2"
                 Content="Open change log"
-                MinHeight="56"
-                Padding="18,8"
-                FontSize="15"
-                CornerRadius="12"
+                Style="{StaticResource TouchButtonStyle}"
+                MinWidth="0"
                 VerticalAlignment="Center"
                 Click="OpenChangeLog_Click" />
           </Grid>
