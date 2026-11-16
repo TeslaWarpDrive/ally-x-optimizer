@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.Gaming.Input;
 
 namespace AllyTuner.Services;
@@ -207,7 +208,7 @@ internal sealed class GamepadService
                 }
                 else if (!TryAdjustSlider(focused, command))
                 {
-                    FocusManager.TryMoveFocus(ToDirection(command), new FindNextElementOptions { SearchRoot = root.Content });
+                    FocusManager.TryMoveFocus(ToDirection(command), new FindNextElementOptions { SearchRoot = SearchRootFor(root, focused) });
                 }
 
                 break;
@@ -222,6 +223,36 @@ internal sealed class GamepadService
                 _windowCommand(command);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Focus moves stay inside whatever holds focus: an open dialog or drop-down lives in a popup, outside the
+    /// window's content, so searching the content would jump to the page behind it.
+    /// </summary>
+    private static UIElement SearchRootFor(XamlRoot root, UIElement focused)
+    {
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+        {
+            if (popup.Child is { } child && IsAncestorOf(child, focused))
+            {
+                return child;
+            }
+        }
+
+        return root.Content;
+    }
+
+    private static bool IsAncestorOf(DependencyObject ancestor, DependencyObject node)
+    {
+        for (DependencyObject? current = node; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Left/Right on a focused slider changes its value instead of leaving it.</summary>

@@ -1,6 +1,7 @@
 using AllyTuner.Core.Input;
 using AllyTuner.Core.Logging;
 using AllyTuner.Pages;
+using AllyTuner.Safety;
 using AllyTuner.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -35,6 +36,8 @@ public sealed partial class MainWindow : Window
 
         _gamepad = new GamepadService(DispatcherQueue, () => Content?.XamlRoot, OnGamepadCommand, _inputArbiter, App.Services.Log);
         Activated += (_, e) => _gamepad.IsWindowActive = e.WindowActivationState != WindowActivationState.Deactivated;
+        App.Services.SettingsChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateDryRunBanner);
+        UpdateDryRunBanner();
         Closed += (_, _) => _gamepad.Stop();
     }
 
@@ -62,12 +65,39 @@ public sealed partial class MainWindow : Window
             {
                 Navigate(typeof(ProbePage), null);
             }
+            else if (tag == "safety")
+            {
+                Navigate(typeof(SafetyPage), null);
+            }
             else if (Sections.ByTag(tag) is { } section)
             {
                 Navigate(typeof(PlaceholderPage), section);
             }
         }
     }
+
+    private async void Nav_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer == ResetNavItem && Content?.XamlRoot is { } root)
+        {
+            try
+            {
+                if ((await SafetyDialogs.ResetToSafeDefaultsAsync(root)).Count > 0)
+                {
+                    ShowSection("safety");
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                App.Services.Log.Error("Reset to Safe Defaults failed.", ex);
+            }
+        }
+    }
+
+    private void OpenChangeLog_Click(object sender, RoutedEventArgs e) => ShowSection("safety");
+
+    /// <summary>The banner shows whenever no change can be live. In this build that is always.</summary>
+    private void UpdateDryRunBanner() => DryRunBanner.IsOpen = App.Services.Gate.EverythingIsDryRun;
 
     /// <summary>Selects a menu item by its Tag (used by buttons that link to another section) and focuses it.</summary>
     public void ShowSection(string tag)
@@ -141,9 +171,16 @@ public sealed partial class MainWindow : Window
     {
         switch (command)
         {
+            case NavCommand.Back when SafetyDialogs.Current is { } dialog:
+                // B on a confirmation means Cancel, never "go to the menu behind it".
+                dialog.Hide();
+                break;
             case NavCommand.Back:
                 // B always returns focus to the menu, so the user can never get "lost" in a page.
                 FocusSelectedNavItem();
+                break;
+            case NavCommand.PreviousSection or NavCommand.NextSection or NavCommand.Menu when SafetyDialogs.Current is not null:
+                // Bumpers and Menu do nothing while a confirmation is open.
                 break;
             case NavCommand.PreviousSection:
                 MoveSection(-1);

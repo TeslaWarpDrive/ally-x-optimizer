@@ -8,6 +8,19 @@
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>
 
+      <!-- Dry-run text: amber, readable on both themes. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="#8A5300" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="#FFC857" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
       <!-- Sizing for a 7-inch 1080p touchscreen and controller use: big targets, readable text. -->
       <x:Double x:Key="NavigationViewItemOnLeftMinHeight">56</x:Double>
 

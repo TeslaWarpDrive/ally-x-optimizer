@@ -72,3 +72,15 @@ Please note pass/fail for each item, plus anything that looks wrong:
 7. **Keyboard (optional):** arrow keys move the highlight, and Enter/Space presses.
 8. **Diagnostics report.** On Home, press **Save diagnostics report**. It saves a `.txt` to `Documents\Ally Tuner`. Copy that file to the Mac and paste its contents to me. It has no user name, PC name or serial numbers.
 9. **Log.** Settings → **Open logs folder** opens `%LOCALAPPDATA%\AllyTuner\logs`. Copy `app.log` too if anything went wrong.
+
+## Phase 2 (safety framework), for the final Ally test
+
+On-device testing waits until the whole app is finished. Then, for this part:
+
+1. A yellow **Dry-run** banner shows at the top of every page and has no close button.
+2. **Safety and changes**: pick *Sustained power limit (SPL)*, move the slider to 50 W, press *Preview change…*. The dialog says 50 W was clamped to 35 W, and *Cancel* is selected first. Press **B**: the dialog closes and nothing is logged as changed.
+3. Repeat and choose *Simulate change*. A "Dry-run: would set…" entry appears in the change log. *Undo…* on it explains that the value before is unknown.
+4. **Reset to Safe Defaults** (bottom of the menu): the dialog lists the mode reset and explains the power limits. Simulate it; it appears in the log.
+5. With Armoury Crate running, the Safety page warns that it can change power settings.
+6. Settings: switch "When another app changes a setting back" and restart the app; the choice is kept.
+

@@ -18,6 +18,7 @@
       XYFocusKeyboardNavigation="Enabled"
       Loaded="Nav_Loaded"
       SelectionChanged="Nav_SelectionChanged"
+      ItemInvoked="Nav_ItemInvoked"
       PreviewKeyDown="Root_PreviewKeyDown"
       PreviewKeyUp="Root_PreviewKeyUp">
     <NavigationView.MenuItems>
@@ -51,6 +52,11 @@
           <FontIcon Glyph="&#xE8FD;" />
         </NavigationViewItem.Icon>
       </NavigationViewItem>
+      <NavigationViewItem Content="Safety and changes" Tag="safety">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE83D;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
       <NavigationViewItem Content="Hardware probe" Tag="probe">
         <NavigationViewItem.Icon>
           <FontIcon Glyph="&#xE9D9;" />
@@ -58,6 +64,37 @@
       </NavigationViewItem>
     </NavigationView.MenuItems>
 
-    <Frame x:Name="ContentFrame" />
+    <!-- Always one press away: invoking it opens the confirmation; it never navigates. -->
+    <NavigationView.FooterMenuItems>
+      <NavigationViewItem x:Name="ResetNavItem" Content="Reset to Safe Defaults" Tag="reset" SelectsOnInvoked="False">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE777;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+    </NavigationView.FooterMenuItems>
+
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <!-- The dry-run banner cannot be closed: while it shows, nothing on the device is changed. -->
+      <InfoBar
+          x:Name="DryRunBanner"
+          Grid.Row="0"
+          Margin="16,12,16,0"
+          IsOpen="True"
+          IsClosable="False"
+          Severity="Warning"
+          Title="Dry-run"
+          Message="Nothing on this device is changed. Every change is simulated and recorded in the change log.">
+        <InfoBar.ActionButton>
+          <Button Content="Open change log" MinHeight="44" Click="OpenChangeLog_Click" />
+        </InfoBar.ActionButton>
+      </InfoBar>
+
+      <Frame x:Name="ContentFrame" Grid.Row="1" />
+    </Grid>
   </NavigationView>
 </Window>

@@ -235,6 +235,8 @@ Phase 2 (the safety framework) and Phase 4 (ASUS writes) build on these:
 6. Many settings cannot be read back (power limits, mode, charge limit). The app records what it applied, and "Reset to Safe Defaults" returns to firmware defaults through a mode that is confirmed in dry-run.
 7. Every first write of each control ships in dry-run first, and Bradley watches it on the Ally.
 
+Phase 2 implements these as code (`src/AllyTuner.Core/Safety`, see ARCHITECTURE.md): rule 2 is `TunableSettings` + `ValueGuard`, rules 1 and 7 are `WriteGate`, and rule 6 is `ChangeJournal`'s last-applied values and Reset to Safe Defaults resetting the mode.
+
 ## 13. Bradley's Probe results (2026-11-15)
 
 Two Probe reports from Bradley's ROG Xbox Ally X, build `0.2.0+ci.3`, both on the Windows desktop: `probe-20261115-175955-battery-desktop.txt` (on battery, 75 %) and `probe-20261115-180315-ac-desktop.txt` (plugged in). The reports stay outside the repository; the ASUS replies are copied into `tests/AllyTuner.Core.Tests/Asus/BradleyAllyProbe.cs` and tested against the catalog. Per-ID notes are in `src/AllyTuner.Core/Asus/BradleyAllyEvidence.cs` and appear in every new report as "seen on the reviewed Ally".

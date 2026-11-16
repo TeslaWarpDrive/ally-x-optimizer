@@ -28,7 +28,7 @@ public sealed partial class HomePage : Page
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         var services = App.Services;
-        DryRunValue.Text = services.Settings.DryRunMode ? "On" : "Off";
+        DryRunValue.Text = services.Gate.EverythingIsDryRun ? "On" : "Off for released settings";
         VersionDetail.Text = $"Ally Tuner {services.AppVersion}";
 
         // "Detect on launch and continuously": refresh the live status while Home is showing.

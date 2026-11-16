@@ -12,7 +12,20 @@
           <TextBlock x:Name="DryRunValue" Style="{StaticResource CardValueTextStyle}" />
           <TextBlock
               Style="{StaticResource CardDetailTextStyle}"
-              Text="This build has no controls that change anything, so dry-run is locked on. Later builds let you turn it off for each control, one at a time, after you have checked it on the Ally." />
+              Text="This build cannot change hardware, so dry-run is locked on. Later builds let you turn it off for each control, one at a time, after you have watched its dry-run on the Ally." />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="When another app changes a setting back" Style="{StaticResource CardLabelTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Armoury Crate or AMD Software can change settings Ally Tuner applied. Settings the device can report are checked; for the others, you get a warning while Armoury Crate is running." />
+          <RadioButtons x:Name="OverridePolicyChoice" SelectionChanged="OverridePolicyChoice_SelectionChanged">
+            <RadioButton MinHeight="48" FontSize="16" Content="Warn me and leave it (recommended)" Tag="Warn" />
+            <RadioButton MinHeight="48" FontSize="16" Content="Apply my setting again (stops after 3 times in 10 minutes)" Tag="ReApply" />
+          </RadioButtons>
         </StackPanel>
       </Border>
 

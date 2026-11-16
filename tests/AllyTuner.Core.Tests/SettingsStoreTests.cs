@@ -43,6 +43,33 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Live_release_list_and_override_policy_round_trip_with_the_policy_as_text()
+    {
+        var store = new SettingsStore(SettingsPath, _log);
+
+        store.Save(new AppSettings { LiveSettingIds = ["asus.spl"], OverridePolicy = AllyTuner.Core.Safety.OverridePolicy.ReApply });
+        var loaded = store.Load();
+
+        Assert.Equal(["asus.spl"], loaded.LiveSettingIds);
+        Assert.Equal(AllyTuner.Core.Safety.OverridePolicy.ReApply, loaded.OverridePolicy);
+        Assert.Contains("\"overridePolicy\": \"ReApply\"", File.ReadAllText(SettingsPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_older_file_without_the_safety_fields_gets_safe_defaults()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(SettingsPath, "{ \"schemaVersion\": 1, \"dryRunMode\": true }");
+
+        var loaded = new SettingsStore(SettingsPath, _log).Load();
+
+        Assert.True(loaded.DryRunMode);
+        Assert.Empty(loaded.LiveSettingIds);
+        Assert.Equal(AllyTuner.Core.Safety.OverridePolicy.Warn, loaded.OverridePolicy);
+        Assert.Equal("dry-run on; live: none; overrides: Warn", loaded.Describe());
+    }
+
+    [Fact]
     public void Corrupt_file_is_moved_aside_and_defaults_are_used()
     {
         Directory.CreateDirectory(_dir);

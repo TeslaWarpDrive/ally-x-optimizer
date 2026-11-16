@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AllyTuner.Core.Logging;
 
 namespace AllyTuner.Core.Settings;
@@ -14,6 +15,7 @@ public sealed class SettingsStore
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
     };
 
     private readonly string _path;

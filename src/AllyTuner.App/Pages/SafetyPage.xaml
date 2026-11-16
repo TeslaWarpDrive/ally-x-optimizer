@@ -1,0 +1,58 @@
+<Page
+    x:Class="AllyTuner.Pages.SafetyPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Safety and changes" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Every change goes through the same steps: checked against safe limits, confirmed by you, recorded here, and reversible." />
+      </StackPanel>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Write mode" Style="{StaticResource CardLabelTextStyle}" />
+          <TextBlock x:Name="ModeValue" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock x:Name="ModeDetail" Style="{StaticResource CardDetailTextStyle}" />
+        </StackPanel>
+      </Border>
+
+      <InfoBar x:Name="OverrideInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" Title="Other apps can change settings" />
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Reset to Safe Defaults" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Puts the performance mode back to Balanced, which lets the firmware set its own power limits again. You see every step before anything happens." />
+          <Button x:Name="ResetButton" Content="Reset to Safe Defaults…" Style="{StaticResource TouchAccentButtonStyle}" Click="ResetButton_Click" />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Try the safety checks" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Pick a setting and a value to see the confirmation, the clamping and the change log at work. The slider goes past the safe range on purpose. In this build nothing is written to the device." />
+          <ComboBox x:Name="SettingPicker" Header="Setting" MinWidth="360" MinHeight="56" FontSize="17" SelectionChanged="SettingPicker_SelectionChanged" />
+          <StackPanel Spacing="4">
+            <TextBlock x:Name="TrialValueText" Style="{StaticResource CardValueTextStyle}" />
+            <Slider x:Name="TrialSlider" MinHeight="48" StepFrequency="1" SmallChange="1" ValueChanged="TrialSlider_ValueChanged" />
+            <TextBlock x:Name="TrialRangeText" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+          <Button Content="Preview change…" Style="{StaticResource TouchButtonStyle}" Click="PreviewButton_Click" />
+        </StackPanel>
+      </Border>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Change log" Style="{StaticResource CardValueTextStyle}" />
+        <TextBlock x:Name="LogSummary" Style="{StaticResource CardDetailTextStyle}" IsTextSelectionEnabled="True" />
+      </StackPanel>
+      <StackPanel x:Name="LogList" Spacing="12" />
+    </StackPanel>
+  </ScrollViewer>
+</Page>

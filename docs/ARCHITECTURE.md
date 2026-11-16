@@ -39,6 +39,35 @@ App/Pages/ProbePage             Run probe -> report saved to Documents\Ally Tune
 with that record and the BIOS version. Phase 4 writes only to `ConfirmedByProbe` endpoints.
 `ReadOnlyGuardTests` scans `src/` and fails if a write path appears.
 
+## Safety framework (Phase 2)
+
+Every change, from any page, profile or reset, goes through one path in `Core/Safety` (all unit-tested):
+
+```
+TunableSettings      what can be changed: id, safe range per power source (or a fixed list), safe default,
+                     risk, whether it can be read back, the ASUS ID, and pinned sources for every number
+ValueGuard           clamps numbers into the range for the current power source; refuses values not on a list
+WriteGate            dry-run or live. Live needs ALL of: BuildSafety.LiveWritesInThisBuild (false in this
+                     build), dry-run off, the setting released after a watched dry-run, and its ASUS ID
+                     ConfirmedByProbe. Anything else is a dry-run.
+SafeChangeService    Plan -> ChangePlan (before, after, clamp note, gate) -> ConfirmationText for the dialog
+                     -> plan.Confirm() -> ExecuteAsync. Only a ConfirmedChange can execute. Execution checks
+                     again: a stricter gate makes it a dry-run; a power-source change that makes the confirmed
+                     value unsafe refuses it. Undo goes back to the value before, or the safe default.
+                     Reset to Safe Defaults is one confirmation for all steps.
+ChangeJournal        changes.jsonl in %LOCALAPPDATA%\AllyTuner: every change, simulated or real, plus
+                     last-applied.json so write-only settings keep their known value. Also in app.log.
+OverrideMonitor      compares read-back values with what was applied; warns or re-applies (at most 3 times
+                     in 10 minutes, then stops and warns). Write-only settings can only get a warning while
+                     Armoury Crate is running.
+```
+
+In this build the only `ISettingWriter` is `NoHardwareWriter`, which fails if ever reached; `NoLiveWriterGuardTests`
+fails the build if another writer appears in `src/`. The app shows a dry-run banner that cannot be closed, a
+**Safety and changes** page (write mode, warnings, Reset to Safe Defaults, a dry-run trial of the checks, and the
+change log with Undo), and **Reset to Safe Defaults** in the menu footer. Confirmation dialogs default to Cancel,
+and the controller's B button cancels them.
+
 ## Controller navigation
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".
