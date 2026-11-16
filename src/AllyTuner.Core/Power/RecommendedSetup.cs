@@ -14,7 +14,10 @@ namespace AllyTuner.Core.Power;
 /// </summary>
 public static class RecommendedSetup
 {
-    /// <summary>The steps, in apply order: the power profile first (G-Helper's order), restart-needing ones after.</summary>
+    /// <summary>
+    /// The steps, starting with the power profile in G-Helper's order (mode, fans, limits). This list is not sorted
+    /// by restart need: <see cref="Plan"/> moves the restart-needing steps last (a test covers that ordering).
+    /// </summary>
     public static IReadOnlyList<(string SettingId, int Value, string Why)> Steps { get; } =
     [
         // "A high sustained Manual power profile (~30-35 W)" and "aggressive fan curve": Performance Max.
