@@ -143,7 +143,7 @@ public static class PowerProfiles
         {
             if (profile.Values.TryGetValue(id, out var value) && changes.Find(id) is { } setting)
             {
-                var plan = changes.Plan(setting, value, origin);
+                var plan = changes.Plan(setting, value, origin, plans);
                 if (!plan.IsNoChange)
                 {
                     plans.Add(plan);

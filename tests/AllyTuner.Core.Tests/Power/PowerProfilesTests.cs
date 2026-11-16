@@ -15,8 +15,9 @@ public sealed class PowerProfilesTests : IDisposable
     public PowerProfilesTests()
     {
         var facts = DeviceControlFacts.Decode(true, BradleyAllyProbe.OnBattery, Guid.Empty, 0, 0);
-        var reader = new PowerControlReader(() => facts, () => _settings, () => null, _log);
-        Service = new SafeChangeService(PowerControls.All, new ChangeJournal(_dir, _log), new WriteGate(() => _settings), NoHardwareWriter.Instance, _log,
+        var journal = new ChangeJournal(_dir, _log);
+        var reader = new PowerControlReader(() => facts, () => _settings, () => journal.LatestDone(TunableSettings.PerformanceModeId)?.Value, _log);
+        Service = new SafeChangeService(PowerControls.All, journal, new WriteGate(() => _settings), NoHardwareWriter.Instance, _log,
             () => PowerSource.AC, reader, describer: reader);
     }
 
