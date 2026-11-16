@@ -1,8 +1,10 @@
 using AllyTuner.Core.Input;
 using AllyTuner.Core.Logging;
+using AllyTuner.Core.Safety;
 using AllyTuner.Pages;
 using AllyTuner.Safety;
 using AllyTuner.Services;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,6 +19,7 @@ namespace AllyTuner;
 public sealed partial class MainWindow : Window
 {
     private readonly GamepadService _gamepad;
+    private readonly DispatcherQueueTimer _overrideTimer;
 
     // Shared with GamepadService so one physical press never moves focus twice (see InputArbiter).
     private readonly InputArbiter _inputArbiter = new();
@@ -46,7 +49,19 @@ public sealed partial class MainWindow : Window
         Activated += (_, e) => _gamepad.IsWindowActive = e.WindowActivationState != WindowActivationState.Deactivated;
         App.Services.SettingsChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateDryRunBanner);
         RootGrid.Loaded += (_, _) => UpdateDryRunBanner();
-        Closed += (_, _) => _gamepad.Stop();
+
+        // Override check: every 30 s while the app runs. Re-applying goes through the safety service, so it
+        // obeys dry-run like every other change.
+        _overrideTimer = DispatcherQueue.CreateTimer();
+        _overrideTimer.Interval = OverrideWatcher.Interval;
+        _overrideTimer.Tick += async (_, _) => await RunOverrideCheckAsync();
+        _overrideTimer.Start();
+
+        Closed += (_, _) =>
+        {
+            _overrideTimer.Stop();
+            _gamepad.Stop();
+        };
     }
 
     private void Nav_Loaded(object sender, RoutedEventArgs e)
@@ -103,6 +118,28 @@ public sealed partial class MainWindow : Window
     }
 
     private void OpenChangeLog_Click(object sender, RoutedEventArgs e) => ShowSection("safety");
+
+    private async Task RunOverrideCheckAsync()
+    {
+        try
+        {
+            var result = await Task.Run(() => App.Services.OverrideWatcher.CheckAsync());
+            var warnings = result.Warnings;
+            if (warnings.Count > 0)
+            {
+                OverrideBanner.Message = string.Join(" ", warnings.Select(w => w.Message));
+                OverrideBanner.IsOpen = true;
+            }
+            else if (result.Responses.Count == 0)
+            {
+                OverrideBanner.IsOpen = false;
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Warn("The override check failed.", ex);
+        }
+    }
 
     /// <summary>The banner shows whenever no change can be live. In this build that is always.</summary>
     private void UpdateDryRunBanner()

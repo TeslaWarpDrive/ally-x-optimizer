@@ -104,6 +104,9 @@ public sealed record SettingDefinition
     /// <summary>What Reset to Safe Defaults does for this setting, in plain words.</summary>
     public string ResetNote { get; init; } = string.Empty;
 
+    /// <summary>What to do instead when a change cannot be undone (no earlier value and no safe default).</summary>
+    public string NoUndoAdvice { get; init; } = "Use Reset to Safe Defaults instead.";
+
     /// <summary>The ASUS device ID this setting writes in Phase 4, if any. Live writes need it confirmed on the device.</summary>
     public uint? AsusDeviceId { get; init; }
 

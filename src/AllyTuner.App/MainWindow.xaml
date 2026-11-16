@@ -120,6 +120,7 @@
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -158,7 +159,7 @@
             <Button
                 Grid.Column="2"
                 Content="Open change log"
-                MinHeight="48"
+                MinHeight="56"
                 Padding="18,8"
                 FontSize="15"
                 CornerRadius="12"
@@ -167,7 +168,18 @@
           </Grid>
         </Border>
 
-        <Frame x:Name="ContentFrame" Grid.Row="1" />
+        <!-- Shown when the override check finds that another app changed a setting back. -->
+        <InfoBar
+            x:Name="OverrideBanner"
+            Grid.Row="1"
+            Margin="36,10,36,0"
+            MaxWidth="1048"
+            IsOpen="False"
+            IsClosable="True"
+            Severity="Warning"
+            Title="Another app changed a setting" />
+
+        <Frame x:Name="ContentFrame" Grid.Row="2" />
       </Grid>
     </NavigationView>
   </Grid>

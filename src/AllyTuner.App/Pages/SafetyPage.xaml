@@ -26,6 +26,7 @@
             <TextBlock x:Name="ModeValue" Style="{StaticResource CardValueTextStyle}" />
           </StackPanel>
           <TextBlock x:Name="ModeDetail" Style="{StaticResource CardDetailTextStyle}" />
+          <TextBlock x:Name="OverrideWatchText" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
       </Border>
 
@@ -51,7 +52,13 @@
           <StackPanel Spacing="4">
             <TextBlock Text="Value" Style="{StaticResource CardLabelTextStyle}" />
             <TextBlock x:Name="TrialValueText" Style="{StaticResource MetricTextStyle}" />
-            <Slider x:Name="TrialSlider" MinHeight="48" StepFrequency="1" SmallChange="1" ValueChanged="TrialSlider_ValueChanged" />
+            <Slider
+                x:Name="TrialSlider"
+                MinHeight="56"
+                StepFrequency="1"
+                SmallChange="1"
+                AutomationProperties.Name="Trial value"
+                ValueChanged="TrialSlider_ValueChanged" />
             <TextBlock x:Name="TrialRangeText" Style="{StaticResource CardDetailTextStyle}" />
           </StackPanel>
           <Button Content="Preview change…" Style="{StaticResource TouchButtonStyle}" Click="PreviewButton_Click" />

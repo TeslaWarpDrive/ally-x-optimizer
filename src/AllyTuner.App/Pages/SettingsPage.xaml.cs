@@ -15,6 +15,7 @@ public sealed partial class SettingsPage : Page
             ? (BuildSafety.LiveWritesInThisBuild ? "On" : "On (locked in this build)")
             : "Off for released settings";
         OverridePolicyChoice.SelectedIndex = services.Settings.OverridePolicy == OverridePolicy.ReApply ? 1 : 0;
+        OverrideStatusText.Text = $"Override check: {services.OverrideWatcher.Status}";
         VersionValue.Text = $"Ally Tuner {services.AppVersion}";
         DataFolderText.Text = $"Settings and logs: {services.DataDirectory}";
     }

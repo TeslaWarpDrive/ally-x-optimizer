@@ -17,6 +17,9 @@ public static class TunableSettings
     /// <summary>Linux asus-armoury's RC73XA power limits (RESEARCH §6.1).</summary>
     private const string Rc73xaLimits = LinuxAsusArmouryHeader + "#L2858-L2884";
 
+    private const string PowerLimitNoUndoAdvice =
+        "To get back to the firmware's own limit, use Reset to Safe Defaults: it resets the performance mode, which lets the firmware set its limits again.";
+
     private const string PowerLimitResetNote =
         "Not written directly. The firmware sets its own limit again when the performance mode is reset (RESEARCH §6.2; to be checked in a watched dry-run in Phase 4).";
 
@@ -38,6 +41,7 @@ public static class TunableSettings
         RangeOnAc = new(7, 35),
         RangeOnBattery = new(7, 35),
         ResetNote = PowerLimitResetNote,
+        NoUndoAdvice = PowerLimitNoUndoAdvice,
         AsusDeviceId = 0x001200A3,
     };
 
@@ -48,6 +52,7 @@ public static class TunableSettings
         RangeOnAc = new(14, 45),
         RangeOnBattery = new(13, 45),
         ResetNote = PowerLimitResetNote,
+        NoUndoAdvice = PowerLimitNoUndoAdvice,
         AsusDeviceId = 0x001200A0,
     };
 
@@ -58,6 +63,7 @@ public static class TunableSettings
         RangeOnAc = new(19, 55),
         RangeOnBattery = new(19, 55),
         ResetNote = PowerLimitResetNote,
+        NoUndoAdvice = PowerLimitNoUndoAdvice,
         AsusDeviceId = 0x001200C1,
     };
 

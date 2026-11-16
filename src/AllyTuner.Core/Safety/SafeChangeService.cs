@@ -33,6 +33,9 @@ public sealed class NoHardwareWriter : ISettingWriter
 /// <summary>The outcome of asking to undo a change-log entry.</summary>
 public sealed record UndoPlan(ChangePlan? Plan, string Reason);
 
+/// <summary>Whether Undo can be offered for a change-log entry, and if not, why.</summary>
+public sealed record UndoCheck(bool Available, string Reason);
+
 /// <summary>
 /// The single path every change goes through: plan (clamp, value before, dry-run or live), confirm, then execute.
 /// Every execution is recorded in the <see cref="ChangeJournal"/> and the app log, simulated or not.
@@ -96,39 +99,59 @@ public sealed class SafeChangeService
     }
 
     /// <summary>
-    /// Plans the reverse of a change-log entry: back to the value before it, or to the safe default when that
-    /// value was unknown. Returns a reason instead of a plan when neither is possible.
+    /// Whether a change-log entry can be undone, without planning anything. The change log offers Undo only when
+    /// this says yes, and shows <see cref="UndoCheck.Reason"/> otherwise.
     /// </summary>
-    public UndoPlan PlanUndo(ChangeRecord record)
+    public UndoCheck CheckUndo(ChangeRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
         if (!record.CanUndo)
         {
-            return new UndoPlan(null, "Only changes that went through (simulated or applied) can be undone.");
+            return new UndoCheck(false, "Only changes that went through (simulated or applied) can be undone.");
         }
 
         if (Find(record.SettingId) is not { } setting)
         {
-            return new UndoPlan(null, $"This build no longer knows the setting '{record.SettingId}'.");
+            return new UndoCheck(false, $"This build no longer knows the setting '{record.SettingId}'.");
         }
 
+        return record.Before is not null || setting.SafeDefault is not null
+            ? new UndoCheck(true, string.Empty)
+            : new UndoCheck(false, NoUndoReason(setting));
+    }
+
+    /// <summary>
+    /// Plans the reverse of a change-log entry: back to the value before it, or to the safe default when that
+    /// value was unknown. Returns a reason instead of a plan when neither is possible (see <see cref="CheckUndo"/>).
+    /// </summary>
+    public UndoPlan PlanUndo(ChangeRecord record)
+    {
+        var check = CheckUndo(record);
+        if (!check.Available)
+        {
+            return new UndoPlan(null, check.Reason);
+        }
+
+        var setting = Find(record.SettingId)!;
         if (record.Before is { } before)
         {
             return new UndoPlan(Plan(setting, before, ChangeOrigin.Undo) with { UndoOf = record.Id }, string.Empty);
         }
 
-        if (setting.SafeDefault is { } safe)
-        {
-            return new UndoPlan(
-                Plan(setting, safe, ChangeOrigin.Undo) with
-                {
-                    UndoOf = record.Id,
-                    Note = "The value before that change was unknown, so undo uses the safe default.",
-                },
-                string.Empty);
-        }
+        return new UndoPlan(
+            Plan(setting, setting.SafeDefault!.Value, ChangeOrigin.Undo) with
+            {
+                UndoOf = record.Id,
+                Note = "The value before that change was unknown, so undo uses the safe default.",
+            },
+            string.Empty);
+    }
 
-        return new UndoPlan(null, $"The value before that change is unknown and {setting.Name} has no safe default of its own. {setting.ResetNote}");
+    /// <summary>Why a change to this setting has nothing to undo to, in plain words.</summary>
+    public static string NoUndoReason(SettingDefinition setting)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        return $"No undo for this change: the device cannot report {setting.Name}, and Ally Tuner had not set it before, so there is no earlier value to go back to. {setting.NoUndoAdvice}";
     }
 
     /// <summary>Plans for every setting with a safe default. Settings without one are listed by <see cref="NotResetDirectly"/>.</summary>

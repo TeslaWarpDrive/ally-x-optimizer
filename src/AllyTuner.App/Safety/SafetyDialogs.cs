@@ -45,7 +45,11 @@ internal static class SafetyDialogs
             Title = text.Title,
             Content = new ScrollViewer { Content = body },
             CloseButtonText = text.CloseButton,
+
+            // Cancel stays the default (and accent) button, so pressing A straight away never confirms.
             DefaultButton = ContentDialogButton.Close,
+            CloseButtonStyle = (Style)Application.Current.Resources["DialogDefaultButtonStyle"],
+            PrimaryButtonStyle = (Style)Application.Current.Resources["DialogButtonStyle"],
         };
         if (text.PrimaryButton is { } primary)
         {

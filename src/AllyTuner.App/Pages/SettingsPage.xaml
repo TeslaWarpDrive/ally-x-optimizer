@@ -27,10 +27,11 @@
           <TextBlock Text="When another app changes a setting back" Style="{StaticResource CardLabelTextStyle}" />
           <TextBlock
               Style="{StaticResource CardDetailTextStyle}"
-              Text="Armoury Crate or AMD Software can change settings Ally Tuner applied. Settings the device can report are checked; for the others, you get a warning while Armoury Crate is running." />
+              Text="Armoury Crate or AMD Software can change settings Ally Tuner applied. While Ally Tuner is open it checks every 30 seconds. Only settings that were changed live and that Windows or the device can report are checked; for the others, you get a warning while Armoury Crate is running." />
+          <TextBlock x:Name="OverrideStatusText" Style="{StaticResource CardDetailTextStyle}" />
           <RadioButtons x:Name="OverridePolicyChoice" SelectionChanged="OverridePolicyChoice_SelectionChanged">
-            <RadioButton MinHeight="48" FontSize="16" Content="Warn me and leave it (recommended)" Tag="Warn" />
-            <RadioButton MinHeight="48" FontSize="16" Content="Apply my setting again (stops after 3 times in 10 minutes)" Tag="ReApply" />
+            <RadioButton MinHeight="56" FontSize="16" Content="Warn me and leave it (recommended)" Tag="Warn" />
+            <RadioButton MinHeight="56" FontSize="16" Content="Apply my setting again (stops after 3 times in 10 minutes)" Tag="ReApply" />
           </RadioButtons>
         </StackPanel>
       </Border>

@@ -60,12 +60,17 @@ ChangeJournal        changes.jsonl in %LOCALAPPDATA%\AllyTuner: every change, si
 OverrideMonitor      compares read-back values with what was applied; warns or re-applies (at most 3 times
                      in 10 minutes, then stops and warns). Write-only settings can only get a warning while
                      Armoury Crate is running.
+OverrideWatcher      the check MainWindow runs every 30 s: reads back every setting changed live, then warns
+                     (banner + log, once per distinct message) or re-applies through SafeChangeService, so a
+                     re-apply in dry-run is only simulated. With nothing applied live it has nothing to check,
+                     and Settings and the Safety page say so.
 ```
 
 In this build the only `ISettingWriter` is `NoHardwareWriter`, which fails if ever reached; `NoLiveWriterGuardTests`
 fails the build if another writer appears in `src/`. The app shows a dry-run banner that cannot be closed, a
 **Safety and changes** page (write mode, warnings, Reset to Safe Defaults, a dry-run trial of the checks, and the
-change log with Undo), and **Reset to Safe Defaults** in the menu footer. Confirmation dialogs default to Cancel,
+change log with Undo), and **Reset to Safe Defaults** in the menu footer. Undo is offered only when it can work
+(`SafeChangeService.CheckUndo`); otherwise the log entry says why, and the confirmation says so before the change. Confirmation dialogs default to Cancel,
 and the controller's B button cancels them.
 
 ## Controller navigation

@@ -4,6 +4,7 @@ using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
 using AllyTuner.Safety;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
@@ -57,10 +58,12 @@ public sealed partial class SafetyPage : Page
 
     private void ShowMode()
     {
+        OverrideWatchText.Text = $"Override check: {App.Services.OverrideWatcher.Status}";
         var gate = App.Services.Gate;
         if (gate.EverythingIsDryRun)
         {
             ModeValue.Text = "Dry-run: nothing on this device is changed";
+            ModeDot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["StatusAttentionBrush"];
             ModeDetail.Text = BuildSafety.LiveWritesInThisBuild
                 ? "Dry-run mode is on. Changes are simulated and recorded below."
                 : $"{BuildSafety.NoLiveWritesReason} Changes are simulated and recorded below, so each one can be checked before a later build is allowed to make it.";
@@ -109,6 +112,7 @@ public sealed partial class SafetyPage : Page
             TrialSlider.Value = setting.RangeOnAc?.Min ?? 0;
         }
 
+        AutomationProperties.SetName(TrialSlider, $"Trial value for {setting.Name}");
         TrialRangeText.Text = $"Safe values {ValueGuard.PowerSourceWords(PowerSource.AC)}: {setting.DescribeAllowed(PowerSource.AC)}. "
             + $"On battery: {setting.DescribeAllowed(PowerSource.Battery)}.";
         ShowTrialValue();
@@ -220,7 +224,8 @@ public sealed partial class SafetyPage : Page
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.Children.Add(text);
 
-        if (record.CanUndo)
+        var undoCheck = App.Services.Changes.CheckUndo(record);
+        if (undoCheck.Available)
         {
             var undo = new Button
             {
@@ -233,6 +238,15 @@ public sealed partial class SafetyPage : Page
             undo.Click += UndoButton_Click;
             Grid.SetColumn(undo, 1);
             grid.Children.Add(undo);
+        }
+        else if (record.CanUndo)
+        {
+            // It went through but there is nothing to go back to: say so instead of offering a button that refuses.
+            text.Children.Add(new TextBlock
+            {
+                Text = undoCheck.Reason,
+                Style = (Style)Application.Current.Resources["CardDetailTextStyle"],
+            });
         }
 
         return new Border { Style = (Style)Application.Current.Resources["CardStyle"], Child = grid };

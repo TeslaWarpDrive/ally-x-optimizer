@@ -162,6 +162,7 @@ public sealed partial class HomePage : Page
         {
             PowerValue.Text = "Unknown";
             PowerDetail.Text = "Could not read the power status.";
+            SetChip(PowerDot, PowerChipText, "StatusNeutralBrush", "Power unknown");
         }
 
         // Log only when something changes, so the 10-second refresh does not fill the log.

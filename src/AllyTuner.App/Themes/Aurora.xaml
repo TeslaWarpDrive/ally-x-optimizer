@@ -203,6 +203,27 @@
     <Setter Property="FocusVisualMargin" Value="-4" />
   </Style>
 
+  <!-- Confirmation dialog buttons: 56 px like every other control. The default (Cancel) keeps the accent fill. -->
+  <Style x:Key="DialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="FocusVisualPrimaryThickness" Value="3" />
+    <Setter Property="FocusVisualSecondaryThickness" Value="1" />
+  </Style>
+
+  <Style x:Key="DialogDefaultButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="FocusVisualPrimaryThickness" Value="3" />
+    <Setter Property="FocusVisualSecondaryThickness" Value="1" />
+  </Style>
+
   <!-- Page layout: the same padding and width everywhere. Each page adds its own staggered entrance. -->
   <Style x:Key="PageStackStyle" TargetType="StackPanel">
     <Setter Property="Padding" Value="36,24,36,40" />

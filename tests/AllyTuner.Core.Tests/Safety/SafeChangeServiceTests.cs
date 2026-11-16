@@ -50,7 +50,7 @@ public sealed class SafeChangeServiceTests : IDisposable
         Assert.Contains("current value is unknown", c.Lines[1], StringComparison.Ordinal);
         Assert.Contains("Safe values when plugged in: 7–35 W.", c.Lines);
         Assert.Contains(c.Lines, l => l.StartsWith("Dry-run: nothing on the device changes.", StringComparison.Ordinal));
-        Assert.Equal(ConfirmationText.UndoLine, c.Lines[^1]);
+        Assert.StartsWith("No undo for this change", c.Lines[^1], StringComparison.Ordinal); // first SPL change
     }
 
     [Fact]
@@ -191,7 +191,40 @@ public sealed class SafeChangeServiceTests : IDisposable
         var spl = Assert.Single(await _f.Service.ExecuteAsync(_f.Service.Plan(TunableSettings.SustainedPowerId, 30).Confirm()));
         var splUndo = _f.Service.PlanUndo(spl);
         Assert.Null(splUndo.Plan);
-        Assert.Contains("no safe default", splUndo.Reason, StringComparison.Ordinal);
+        Assert.StartsWith("No undo for this change: the device cannot report Sustained power limit (SPL)", splUndo.Reason, StringComparison.Ordinal);
+        Assert.Contains("use Reset to Safe Defaults", splUndo.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Undo_is_offered_only_when_it_can_work()
+    {
+        // Mode: unknown before, but it has a safe default, so undo works.
+        var mode = Assert.Single(await _f.Service.ExecuteAsync(_f.Service.Plan(TunableSettings.PerformanceModeId, 1).Confirm()));
+        Assert.True(_f.Service.CheckUndo(mode).Available);
+
+        // First SPL change: no earlier value and no safe default, so no Undo, and the reason is plain.
+        var spl = Assert.Single(await _f.Service.ExecuteAsync(_f.Service.Plan(TunableSettings.SustainedPowerId, 30).Confirm()));
+        var check = _f.Service.CheckUndo(spl);
+        Assert.False(check.Available);
+        Assert.Equal(_f.Service.PlanUndo(spl).Reason, check.Reason);
+
+        // Once a value is known (applied live), the next change can be undone.
+        await _live.Service.ExecuteAsync(_live.Service.Plan(TunableSettings.SustainedPowerId, 30).Confirm());
+        var second = Assert.Single(await _live.Service.ExecuteAsync(_live.Service.Plan(TunableSettings.SustainedPowerId, 20).Confirm()));
+        Assert.True(_live.Service.CheckUndo(second).Available);
+    }
+
+    [Fact]
+    public void The_confirmation_warns_before_a_change_that_cannot_be_undone()
+    {
+        var spl = _f.Service.Plan(TunableSettings.SustainedPowerId, 30);
+        Assert.False(spl.UndoWillBeAvailable);
+        Assert.DoesNotContain(ConfirmationText.UndoLine, spl.Confirmation.Lines);
+        Assert.StartsWith("No undo for this change", spl.Confirmation.Lines[^1], StringComparison.Ordinal);
+
+        var mode = _f.Service.Plan(TunableSettings.PerformanceModeId, 1);
+        Assert.True(mode.UndoWillBeAvailable);
+        Assert.Equal(ConfirmationText.UndoLine, mode.Confirmation.Lines[^1]);
     }
 
     [Fact]
