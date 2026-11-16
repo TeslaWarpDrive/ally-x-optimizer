@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Platform-neutral logic (no Windows APIs). Builds and tests on macOS, Linux and Windows,
+    so the unit tests can run on the Mac before anything is pushed to CI.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AllyTuner.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AllyTuner.Core.Tests" />
+  </ItemGroup>
+</Project>

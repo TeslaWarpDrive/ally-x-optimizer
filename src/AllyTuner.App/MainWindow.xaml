@@ -1,0 +1,56 @@
+<Window
+    x:Class="AllyTuner.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Ally Tuner">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+
+  <!-- Pane is always open: no hidden hamburger menu to hunt for on a handheld. -->
+  <NavigationView
+      x:Name="Nav"
+      PaneDisplayMode="Left"
+      IsBackButtonVisible="Collapsed"
+      IsPaneToggleButtonVisible="False"
+      IsSettingsVisible="True"
+      OpenPaneLength="260"
+      XYFocusKeyboardNavigation="Enabled"
+      Loaded="Nav_Loaded"
+      SelectionChanged="Nav_SelectionChanged">
+    <NavigationView.MenuItems>
+      <NavigationViewItem Content="Home" Tag="home">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE80F;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+      <NavigationViewItem Content="Power" Tag="power">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE945;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+      <NavigationViewItem Content="Graphics" Tag="graphics">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE7F4;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+      <NavigationViewItem Content="Windows tweaks" Tag="windows">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE90F;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+      <NavigationViewItem Content="Battery" Tag="battery">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE83F;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+      <NavigationViewItem Content="Profiles" Tag="profiles">
+        <NavigationViewItem.Icon>
+          <FontIcon Glyph="&#xE8FD;" />
+        </NavigationViewItem.Icon>
+      </NavigationViewItem>
+    </NavigationView.MenuItems>
+
+    <Frame x:Name="ContentFrame" />
+  </NavigationView>
+</Window>

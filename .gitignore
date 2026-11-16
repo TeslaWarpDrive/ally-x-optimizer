@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+.vs/
+.vscode/
+*.binlog
+TestResults/
+
+# Never commit signing material or secrets. The public .cer in signing/ is the only exception.
+*.pfx
+*.p12
+*.key
+*.pem
+*.snk
+.env
+secrets*
+
+# macOS
+.DS_Store

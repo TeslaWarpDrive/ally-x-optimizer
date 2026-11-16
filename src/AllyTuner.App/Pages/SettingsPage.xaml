@@ -1,0 +1,32 @@
+<Page
+    x:Class="AllyTuner.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+      <TextBlock Text="Settings" Style="{StaticResource PageTitleTextStyle}" />
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Dry-run mode" Style="{StaticResource CardLabelTextStyle}" />
+          <TextBlock x:Name="DryRunValue" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="This build has no controls that change anything, so dry-run is locked on. Later builds let you turn it off for each control, one at a time, after you have checked it on the Ally." />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="About" Style="{StaticResource CardLabelTextStyle}" />
+          <TextBlock x:Name="VersionValue" Style="{StaticResource CardValueTextStyle}" IsTextSelectionEnabled="True" />
+          <TextBlock x:Name="DataFolderText" Style="{StaticResource CardDetailTextStyle}" IsTextSelectionEnabled="True" />
+          <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+            <Button Content="Open logs folder" Style="{StaticResource TouchButtonStyle}" Click="OpenLogsButton_Click" />
+            <Button Content="Open reports folder" Style="{StaticResource TouchButtonStyle}" Click="OpenReportsButton_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

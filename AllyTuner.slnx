@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/AllyTuner.Core/AllyTuner.Core.csproj" />
+    <Project Path="src/AllyTuner.Platform.Windows/AllyTuner.Platform.Windows.csproj" />
+    <Project Path="src/AllyTuner.App/AllyTuner.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AllyTuner.Core.Tests/AllyTuner.Core.Tests.csproj" />
+  </Folder>
+</Solution>
