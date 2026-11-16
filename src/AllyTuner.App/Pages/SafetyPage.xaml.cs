@@ -1,5 +1,6 @@
 using System.Globalization;
 using AllyTuner.Core.Detection;
+using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
 using AllyTuner.Safety;
 using Microsoft.UI.Xaml;

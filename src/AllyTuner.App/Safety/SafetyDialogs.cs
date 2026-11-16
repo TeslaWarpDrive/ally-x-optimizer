@@ -1,3 +1,4 @@
+using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
