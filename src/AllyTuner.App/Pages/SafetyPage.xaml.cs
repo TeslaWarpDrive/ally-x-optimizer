@@ -68,6 +68,7 @@ public sealed partial class SafetyPage : Page
         else
         {
             ModeValue.Text = "Live for released settings";
+            ModeDot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["StatusGoodBrush"];
             ModeDetail.Text = "Settings released after a watched dry-run change the device. All others stay dry-run.";
         }
     }
@@ -119,7 +120,7 @@ public sealed partial class SafetyPage : Page
     {
         if (SelectedSetting is { } setting)
         {
-            TrialValueText.Text = $"Value: {setting.Format(TrialValue)}";
+            TrialValueText.Text = setting.Format(TrialValue);
         }
     }
 
@@ -200,11 +201,15 @@ public sealed partial class SafetyPage : Page
             Style = (Style)Application.Current.Resources["BodyLargeTextStyle"],
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
         });
-        text.Children.Add(new TextBlock
+        var meta = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        meta.Children.Add(OutcomeChip(record.Outcome));
+        meta.Children.Add(new TextBlock
         {
-            Text = $"{record.Time.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)} · {OutcomeWords(record.Outcome)} · {OriginWords(record.Origin)}",
+            Text = $"{record.Time.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)} · {OriginWords(record.Origin)}",
             Style = (Style)Application.Current.Resources["CardLabelTextStyle"],
+            VerticalAlignment = VerticalAlignment.Center,
         });
+        text.Children.Add(meta);
         if (!string.IsNullOrWhiteSpace(record.Detail))
         {
             text.Children.Add(new TextBlock { Text = record.Detail, Style = (Style)Application.Current.Resources["CardDetailTextStyle"] });
@@ -233,12 +238,35 @@ public sealed partial class SafetyPage : Page
         return new Border { Style = (Style)Application.Current.Resources["CardStyle"], Child = grid };
     }
 
+    /// <summary>Outcome as a chip: amber dry-run, teal applied, coral failed, grey refused.</summary>
+    private static Border OutcomeChip(ChangeOutcome outcome)
+    {
+        var resources = Application.Current.Resources;
+        var brushKey = outcome switch
+        {
+            ChangeOutcome.Simulated => "StatusAttentionBrush",
+            ChangeOutcome.Applied => "StatusGoodBrush",
+            ChangeOutcome.Failed => "StatusProblemBrush",
+            _ => "StatusNeutralBrush",
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Fill = (Microsoft.UI.Xaml.Media.Brush)resources[brushKey],
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        row.Children.Add(new TextBlock { Text = OutcomeWords(outcome), Style = (Style)resources["ChipTextStyle"] });
+        return new Border { Style = (Style)resources["ChipStyle"], Child = row };
+    }
+
     private static string OutcomeWords(ChangeOutcome outcome) => outcome switch
     {
-        ChangeOutcome.Simulated => "dry-run",
-        ChangeOutcome.Applied => "applied",
-        ChangeOutcome.Failed => "FAILED",
-        _ => "refused",
+        ChangeOutcome.Simulated => "Dry-run",
+        ChangeOutcome.Applied => "Applied",
+        ChangeOutcome.Failed => "Failed",
+        _ => "Refused",
     };
 
     private static string OriginWords(ChangeOrigin origin) => origin switch

@@ -29,6 +29,7 @@ public sealed partial class HomePage : Page
     {
         var services = App.Services;
         DryRunValue.Text = services.Gate.EverythingIsDryRun ? "On" : "Off for released settings";
+        DryRunChipText.Text = services.Gate.EverythingIsDryRun ? "Dry-run" : "Live for released settings";
         VersionDetail.Text = $"Ally Tuner {services.AppVersion}";
 
         // "Detect on launch and continuously": refresh the live status while Home is showing.
@@ -47,9 +48,9 @@ public sealed partial class HomePage : Page
 #pragma warning restore CA1031
         {
             services.Log.Error("Reading system information failed.", ex);
-            DeviceInfoBar.Severity = InfoBarSeverity.Error;
-            DeviceInfoBar.Title = "Could not read device information";
-            DeviceInfoBar.Message = "Details are in the log. Ally Tuner will not change anything.";
+            HeroTitle.Text = "Could not read device information";
+            HeroSummary.Text = "Details are in the log. Ally Tuner will not change anything.";
+            SetChip(DeviceDot, DeviceChipText, "StatusProblemBrush", "Unknown device");
         }
     }
 
@@ -72,14 +73,23 @@ public sealed partial class HomePage : Page
 
         OsValue.Text = snapshot.OsDescription;
 
-        DeviceInfoBar.Title = snapshot.Classification.Kind switch
+        HeroTitle.Text = snapshot.Classification.Kind switch
         {
-            DeviceKind.RogXboxAllyX => "ROG Xbox Ally X detected",
-            DeviceKind.OtherRogAlly => "Different ROG Ally model",
+            DeviceKind.RogXboxAllyX => "ROG Xbox Ally X",
+            DeviceKind.OtherRogAlly => "A different ROG Ally model",
             _ => "Not an ROG Xbox Ally X",
         };
-        DeviceInfoBar.Message = snapshot.Classification.Summary;
-        DeviceInfoBar.Severity = snapshot.Classification.IsSupported ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        HeroSummary.Text = snapshot.Classification.Summary;
+        SetChip(DeviceDot, DeviceChipText,
+            snapshot.Classification.IsSupported ? "StatusGoodBrush" : "StatusAttentionBrush",
+            snapshot.Classification.IsSupported ? "Supported" : "Not supported");
+    }
+
+    /// <summary>Sets a status chip's dot colour (a Status*Brush key) and text.</summary>
+    private static void SetChip(Microsoft.UI.Xaml.Shapes.Ellipse dot, TextBlock text, string brushKey, string label)
+    {
+        dot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[brushKey];
+        text.Text = label;
     }
 
     private async Task RefreshStatusAsync()
@@ -144,6 +154,9 @@ public sealed partial class HomePage : Page
             PowerDetail.Text = power.BatteryPercent is { } pct
                 ? $"Battery {pct} %."
                 : "Battery level not reported.";
+            SetChip(PowerDot, PowerChipText,
+                power.Source == PowerSource.AC ? "StatusGoodBrush" : "StatusNeutralBrush",
+                power.BatteryPercent is { } chipPct ? $"{PowerValue.Text} · {chipPct} %" : PowerValue.Text);
         }
         else
         {

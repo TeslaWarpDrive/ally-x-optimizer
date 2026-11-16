@@ -9,6 +9,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.System;
+using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace AllyTuner;
 
@@ -28,6 +30,12 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // Aurora title bar: content runs under it, caption buttons stay (minimise, close) in Aurora colours.
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        StyleCaptionButtons();
+        TitleVersionText.Text = App.Services.AppVersion;
+
         // Fill the Ally's screen. (Maximized, not full-screen, so the taskbar and Game Bar still work.)
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -37,7 +45,7 @@ public sealed partial class MainWindow : Window
         _gamepad = new GamepadService(DispatcherQueue, () => Content?.XamlRoot, OnGamepadCommand, _inputArbiter, App.Services.Log);
         Activated += (_, e) => _gamepad.IsWindowActive = e.WindowActivationState != WindowActivationState.Deactivated;
         App.Services.SettingsChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateDryRunBanner);
-        UpdateDryRunBanner();
+        RootGrid.Loaded += (_, _) => UpdateDryRunBanner();
         Closed += (_, _) => _gamepad.Stop();
     }
 
@@ -97,7 +105,44 @@ public sealed partial class MainWindow : Window
     private void OpenChangeLog_Click(object sender, RoutedEventArgs e) => ShowSection("safety");
 
     /// <summary>The banner shows whenever no change can be live. In this build that is always.</summary>
-    private void UpdateDryRunBanner() => DryRunBanner.IsOpen = App.Services.Gate.EverythingIsDryRun;
+    private void UpdateDryRunBanner()
+    {
+        var dryRun = App.Services.Gate.EverythingIsDryRun;
+        DryRunBanner.Visibility = dryRun ? Visibility.Visible : Visibility.Collapsed;
+
+        // The only looping motion in the app, and only if Windows' "Animation effects" is on.
+        if (RootGrid.Resources["DryRunPulse"] is Storyboard pulse)
+        {
+            if (dryRun && new UISettings().AnimationsEnabled)
+            {
+                pulse.Begin();
+            }
+            else
+            {
+                pulse.Stop();
+            }
+        }
+    }
+
+    private void StyleCaptionButtons()
+    {
+        try
+        {
+            var bar = AppWindow.TitleBar;
+            bar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+            bar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+            bar.ButtonForegroundColor = Color.FromArgb(0xFF, 0xE6, 0xEA, 0xFB);
+            bar.ButtonInactiveForegroundColor = Color.FromArgb(0xFF, 0xA4, 0xA9, 0xC8);
+            bar.ButtonHoverBackgroundColor = Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF);
+            bar.ButtonHoverForegroundColor = Microsoft.UI.Colors.White;
+            bar.ButtonPressedBackgroundColor = Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Cosmetic only.
+            App.Services.Log.Warn("Could not style the title bar buttons.", ex);
+        }
+    }
 
     /// <summary>Selects a menu item by its Tag (used by buttons that link to another section) and focuses it.</summary>
     public void ShowSection(string tag)
