@@ -73,6 +73,28 @@ change log with Undo), and **Reset to Safe Defaults** in the menu footer. Undo i
 (`SafeChangeService.CheckUndo`); otherwise the log entry says why, and the confirmation says so before the change. Confirmation dialogs default to Cancel,
 and the controller's B button cancels them.
 
+## Windows tweaks (Phase 3)
+
+```
+Core/Tweaks/WindowsTweaks       the brief's Windows tweaks as SettingDefinitions (choices, recommendation, restart,
+                                warning, sources), Interpret(facts) -> value/availability/note, Recipe(value) -> the
+                                exact registry/DISM/API write. "Not set" is a value, so Undo can delete a value again.
+Core/Tweaks/StartupApps         startup apps as dynamic settings whose ID encodes where they live ("startup:UserRun:App"),
+                                StartupApproved on/off markers, and Windows Security protected
+Core/Tweaks/TweakSettingReader  ISettingReader + IWriteDescriber for SafeChangeService (facts cached 3 s)
+Core/Tweaks/WindowsTweakReport  the Probe's "Windows tweaks (read-only)" lines (no startup app names)
+Platform/WindowsTweakFactsReader  read-only registry / WMI / PowerGetUserConfigured*PowerMode
+App/Pages/WindowsTweaksPage     live state, Apply recommended…, Restore original settings…, one card per tweak and
+                                per startup app; every button plans a change and shows its confirmation
+```
+
+SafeChangeService gained what the tweaks need: a resolver for dynamic settings, write descriptions in the change
+log ("Would set HKCU\...\AutoGameModeEnabled to 1 (REG_DWORD)."), refusal of unavailable settings (UEFI-locked memory
+integrity, a missing feature), `PlanRecommended`, `PlanRestoreOriginals` and one confirmation per batch.
+`WriteGate` keeps community-documented formats (GPU scheduling, windowed games, startup apps) dry-run until a Probe
+on the Ally confirms them. `RestartTracker` lists live changes since boot that wait for a restart.
+Sources and rules: RESEARCH.md §14.
+
 ## Controller navigation
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".

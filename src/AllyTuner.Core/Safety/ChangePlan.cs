@@ -130,6 +130,11 @@ public sealed record ConfirmationText(
             lines.Add("A wrong value here can make the device unstable or hot.");
         }
 
+        if (!string.IsNullOrWhiteSpace(setting.Warning))
+        {
+            lines.Add(setting.Warning);
+        }
+
         lines.Add(DryRunLine(plan.Gate));
         lines.Add(plan.UndoWillBeAvailable ? UndoLine : SafeChangeService.NoUndoReason(setting));
 
@@ -146,31 +151,69 @@ public sealed record ConfirmationText(
     /// <summary>One confirmation for the whole reset. <paramref name="notReset"/> are settings without a value of their own.</summary>
     public static ConfirmationText ForReset(IReadOnlyList<ChangePlan> plans, IReadOnlyList<SettingDefinition> notReset)
     {
-        ArgumentNullException.ThrowIfNull(plans);
         ArgumentNullException.ThrowIfNull(notReset);
+        return ForBatch(
+            "Reset to Safe Defaults", "Reset", "Simulate reset", plans,
+            notReset.Select(s => $"{s.Name}: {s.ResetNote}").ToList(),
+            "Nothing to reset.");
+    }
+
+    /// <summary>
+    /// One confirmation for several changes made together ("Apply recommended", "Restore original"): every step with
+    /// its from → to, restart and warning notes, the dry-run line, and how to undo. <paramref name="extraLines"/>
+    /// explains settings that are not part of it.
+    /// </summary>
+    public static ConfirmationText ForBatch(
+        string name,
+        string applyButton,
+        string simulateButton,
+        IReadOnlyList<ChangePlan> plans,
+        IReadOnlyList<string> extraLines,
+        string nothingToDo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(extraLines);
         var dryRun = plans.Count == 0 || plans.All(p => p.Gate.IsDryRun);
 
         var lines = new List<string>();
         lines.AddRange(plans.Select(p => p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}"));
-        lines.AddRange(notReset.Select(s => $"{s.Name}: {s.ResetNote}"));
-        lines.Add(plans.Count == 0
-            ? "Nothing to reset."
-            : dryRun
+        lines.AddRange(extraLines);
+
+        var restart = plans.Where(p => p.CanProceed && p.Setting.Risk == ChangeRisk.NeedsRestart).Select(p => p.Setting.Name).ToList();
+        if (restart.Count > 0)
+        {
+            lines.Add($"Needs a restart to take effect: {string.Join(", ", restart)}.");
+        }
+
+        lines.AddRange(plans.Where(p => p.CanProceed && !string.IsNullOrWhiteSpace(p.Setting.Warning)).Select(p => p.Setting.Warning).Distinct());
+
+        if (plans.Count == 0)
+        {
+            lines.Add(nothingToDo);
+        }
+        else
+        {
+            lines.Add(dryRun
                 ? "Dry-run: nothing on the device changes. The change log records what would have happened."
                 : "This changes the device now.");
-        lines.Add("Each step is recorded in the change log.");
+            lines.Add("Each step is recorded in the change log.");
+        }
 
         return new ConfirmationText(
-            dryRun ? "Simulate Reset to Safe Defaults?" : "Reset to Safe Defaults?",
+            dryRun ? $"Simulate {name}?" : $"{name}?",
             lines,
-            plans.Any(p => p.CanProceed) ? (dryRun ? "Simulate reset" : "Reset") : null,
+            plans.Any(p => p.CanProceed) ? (dryRun ? simulateButton : applyButton) : null,
             "Cancel",
             dryRun,
             false);
     }
 
     /// <summary>Call only after the person agreed to <see cref="ForReset"/>. Refused plans are left out.</summary>
-    public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans)
+    public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans) => ConfirmBatch(plans);
+
+    /// <summary>Call only after the person agreed to <see cref="ForBatch"/>. Refused plans are left out.</summary>
+    public static ConfirmedChange ConfirmBatch(IReadOnlyList<ChangePlan> plans)
     {
         ArgumentNullException.ThrowIfNull(plans);
         return new ConfirmedChange(plans.Where(p => p.CanProceed).ToList(), ConfirmedBy.Person);

@@ -23,14 +23,6 @@ public static class Sections
                 "HYPR-RX, Radeon Anti-Lag and Radeon Super Resolution, where AMD lets apps control them",
                 "Guidance for FSR and Auto SR",
             ]),
-        new("windows", "Windows tweaks", "Phase 3",
-            "One-tap, reversible Windows gaming settings.",
-            [
-                "Game Mode, hardware-accelerated GPU scheduling, optimizations for windowed games",
-                "Memory Integrity and Virtual Machine Platform (needs a restart)",
-                "Windows power mode",
-                "Startup apps: list and turn off non-essential ones",
-            ]),
         new("battery", "Battery", "Phase 4",
             "Protect the battery while the Ally stays plugged in.",
             [

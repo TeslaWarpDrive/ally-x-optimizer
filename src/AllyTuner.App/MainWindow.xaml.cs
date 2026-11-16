@@ -92,6 +92,10 @@ public sealed partial class MainWindow : Window
             {
                 Navigate(typeof(SafetyPage), null);
             }
+            else if (tag == "windows")
+            {
+                Navigate(typeof(WindowsTweaksPage), null);
+            }
             else if (Sections.ByTag(tag) is { } section)
             {
                 Navigate(typeof(PlaceholderPage), section);

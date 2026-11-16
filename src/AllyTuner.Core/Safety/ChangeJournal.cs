@@ -15,6 +15,12 @@ public enum ChangeOrigin
 
     /// <summary>Re-applied after another app changed the setting back.</summary>
     ReApply,
+
+    /// <summary>Part of "Apply recommended settings".</summary>
+    Recommended,
+
+    /// <summary>Part of "Restore original settings": back to the value before Ally Tuner first changed it.</summary>
+    RestoreOriginal,
 }
 
 /// <summary>How the value before the change is known.</summary>

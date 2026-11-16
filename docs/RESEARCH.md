@@ -19,6 +19,7 @@ This document is the source of truth for every hardware ID, method, buffer layou
 11. [Questions Bradley's Probe report answers](#11-questions-bradleys-probe-report-answers)
 12. [Safety rules derived from this research](#12-safety-rules-derived-from-this-research)
 13. [Bradley's Probe results (2026-11-15)](#13-bradleys-probe-results-2026-11-15)
+14. [Windows tweaks (Phase 3)](#14-windows-tweaks-phase-3)
 
 ---
 
@@ -203,7 +204,7 @@ All read-only in Phase 1, using documented APIs:
 
 ## 10. What the Probe does and never does
 
-**Does (read-only):** reads device identity; opens ATKACPI (read-only handle first, G-Helper's read/write *handle* flags only if refused; opening a handle changes nothing); sends **DSTS reads** for the 26 catalogued IDs above, and every fan curve (CPU, GPU and mid) for 3 modes each; lists the method signatures of ASUS WMI classes in `root\wmi` (definitions only); lists ASUS/AMD/Xbox service and process **names**; reads DXGI adapters, the video driver, ADLX file presence, power state and plan, and the Full Screen Experience state. It then saves `Documents\Ally Tuner\probe-<date>-<time>.txt`.
+**Does (read-only):** reads device identity; opens ATKACPI (read-only handle first, G-Helper's read/write *handle* flags only if refused; opening a handle changes nothing); sends **DSTS reads** for the 26 catalogued IDs above, and every fan curve (CPU, GPU and mid) for 3 modes each; lists the method signatures of ASUS WMI classes in `root\wmi` (definitions only); lists ASUS/AMD/Xbox service and process **names**; reads DXGI adapters, the video driver, ADLX file presence, power state and plan, the Full Screen Experience state, and the Windows tweak values (§14; startup apps as counts and markers only, never names). It then saves `Documents\Ally Tuner\probe-<date>-<time>.txt`.
 
 **Never:** sends DEVS/INIT, invokes a WMI method, writes the registry or a power setting, stops a service, or sends ASUS calls on a machine whose manufacturer is not ASUS. Reports contain no user name, PC name, serial number or file path.
 
@@ -276,6 +277,46 @@ Two Probe reports from Bradley's ROG Xbox Ally X, build `0.2.0+ci.3`, both on th
 - Run the Probe **inside the Full Screen Experience** (FSE detection is unverified).
 - Run the Probe once with the next build: it should say *Matches the reviewed results: yes*, show the fan floors decoded, and read the mid fan curve for all three modes.
 - After any BIOS update, run the Probe again before trusting the confirmations.
+
+## 14. Windows tweaks (Phase 3)
+
+The brief's §5 list. Each tweak is read live (read-only registry, WMI SELECT, documented Get APIs) and changed only through the safety framework. In this build every change is a dry-run, and the change log records the exact write it *would* make. The code that performs those writes is not in this build: `ReadOnlyGuardTests` still forbids registry writes, deletes, key creation, writable opens, power-mode Set calls and DISM process starts.
+
+| Tweak | Read from | Write it would make | Documented by | Restart |
+|---|---|---|---|---|
+| Memory integrity | `HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity` `Enabled` and `Locked`; `Win32_DeviceGuard.SecurityServicesRunning` contains 2 = running | `Enabled` = 0/1 (DWORD), or delete it for "not set". `Locked` = 1 (UEFI lock) makes it unavailable. | Microsoft ([ms-hvci]) | yes |
+| Virtual Machine Platform | `Win32_OptionalFeature` `Name='VirtualMachinePlatform'`, `InstallState` 1 enabled / 2 disabled / 3 absent ([ms-optfeature]); feature name from [ms-wsl] | `dism.exe /Online /Disable-Feature /FeatureName:VirtualMachinePlatform /NoRestart` (enable: `/Enable-Feature … /All`, as in [ms-wsl]; [ms-dism]) | Microsoft | yes |
+| Game Mode | `HKCU\Software\Microsoft\GameBar` `AutoGameModeEnabled` (DWORD 0/1) | the same value, or delete it for "not set" | Microsoft ([ms-settings11]); "not set = on" from [winhance-gamemode] | no |
+| Hardware-accelerated GPU scheduling | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` `HwSchMode`: 2 = on, 1 = off | the same value, or delete it so the driver decides | community only ([winhance-hags]) | yes |
+| Optimizations for windowed games | `HKCU\Software\Microsoft\DirectX\UserGpuPreferences` `DirectXUserGlobalSettings`, key `SwapEffectUpgradeEnable=0/1;` inside a shared string | rewrite the string, keeping every other `Key=Value;` (Auto HDR, VRR) as it was | feature: Microsoft ([ms-windowed]); storage: community ([winhance-windowed]) | no (next game start) |
+| Power mode (plugged in / on battery) | `PowerGetUserConfiguredACPowerMode` / `DCPowerMode` ([ms-pm-get]): `961cc777-…` best efficiency, `00000000-…` balanced, `ded574b5-…` best performance | `PowerSetUserConfiguredACPowerMode` / `DCPowerMode` ([ms-pm-set]) | Microsoft | no |
+| Startup apps | Run keys (HKCU, HKLM, HKLM WOW6432Node) and both Startup folders ([ms-run]); on/off from `…\Explorer\StartupApproved\{Run, Run32, StartupFolder}`: first byte even (02) = on, odd (03) = off, no value = on | the 12-byte marker `03 00 …` (off) or `02 00 …` (on); the Run entry itself is never touched | Run keys: Microsoft. StartupApproved: community, two independent projects agree ([bcu-startup], [greenshot-startup]) | no |
+
+Rules that follow:
+
+- **Community-documented formats stay dry-run** (`SettingDefinition.NeedsDeviceCheck`, enforced by `WriteGate`): GPU scheduling, windowed games and every startup app. They become eligible for live writes only after the final Ally test confirms the format: toggle each one in Windows Settings or Task Manager, run the Probe, and check that its *Windows tweaks (read-only)* section shows the change.
+- **"Not set" is a value.** For memory integrity, Game Mode, GPU scheduling and windowed games, Windows can have no stored value. The app shows *Not set* and keeps it as the value before a change, so Undo deletes the value again instead of writing a default.
+- **Recommendations** (brief §5, for an always-plugged-in Ally): memory integrity off, VM Platform off, Game Mode on, GPU scheduling on, windowed games on, and best performance when plugged in. *Apply recommended* plans only what differs, with one confirmation.
+- **Reversible:** every change can be undone from the change log because the value before is read from the device. *Restore original settings* returns each tweak to its value before Ally Tuner first changed it. These tweaks are not part of Reset to Safe Defaults, which stays about the ASUS power state.
+- **Security trade-off:** memory integrity protects against malicious and vulnerable drivers ([ms-hvci]). The confirmation says so, and the app never touches a UEFI-locked setting.
+- **Restart warnings** appear in each confirmation and on the page. After a live change (none in this build), the page lists the changes that still wait for a restart.
+- **Not touched:** Windows Security's own startup entry (`SecurityHealthSystray.exe`). ASUS and AMD startup entries carry a caution.
+- Microsoft's 2022 gaming-performance support article that recommended turning memory integrity and VM Platform off no longer has that text, so the recommendation is cited to the brief, not to Microsoft.
+
+[ms-hvci]: https://learn.microsoft.com/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity
+[ms-optfeature]: https://learn.microsoft.com/windows/win32/cimwin32prov/win32-optionalfeature
+[ms-wsl]: https://learn.microsoft.com/windows/wsl/install-manual
+[ms-dism]: https://learn.microsoft.com/windows-hardware/manufacture/desktop/dism-operating-system-package-servicing-command-line-options
+[ms-settings11]: https://learn.microsoft.com/windows/apps/develop/settings/settings-windows-11
+[ms-windowed]: https://support.microsoft.com/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952
+[ms-pm-get]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powergetuserconfiguredacpowermode
+[ms-pm-set]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetuserconfiguredacpowermode
+[ms-run]: https://learn.microsoft.com/windows/win32/setupapi/run-and-runonce-registry-keys
+[winhance-gamemode]: https://github.com/memstechtips/Winhance/blob/db80ecfcf6762a7b856860930d9f4ee17bf1e67c/src/Winhance.Core/Features/Optimize/Models/GamingAndPerformanceOptimizations.cs#L20-L37
+[winhance-hags]: https://github.com/memstechtips/Winhance/blob/db80ecfcf6762a7b856860930d9f4ee17bf1e67c/src/Winhance.Core/Features/Optimize/Models/GamingAndPerformanceOptimizations.cs#L603-L621
+[winhance-windowed]: https://github.com/memstechtips/Winhance/blob/db80ecfcf6762a7b856860930d9f4ee17bf1e67c/src/Winhance.Core/Features/Optimize/Models/GamingAndPerformanceOptimizations.cs#L626-L644
+[bcu-startup]: https://github.com/BCUninstaller/Bulk-Crap-Uninstaller/blob/30da609384c98ba6e35c6530129541ea4ff3970a/source/UninstallTools/Startup/Normal/NewStartupDisable.cs#L18-L115
+[greenshot-startup]: https://github.com/greenshot/greenshot/blob/4637cbc7dc0a22368191bc2df82c07e5926d657f/src/Greenshot/Helpers/StartupHelper.cs#L278-L305
 
 [gh]: https://github.com/seerge/g-helper/tree/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec
 [gh-acpi-32]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L32-L37

@@ -6,6 +6,7 @@ using AllyTuner.Core.Device;
 using AllyTuner.Core.Diagnostics;
 using AllyTuner.Core.Logging;
 using AllyTuner.Core.Probe;
+using AllyTuner.Core.Tweaks;
 using Microsoft.Win32;
 
 namespace AllyTuner.Platform.Windows;
@@ -42,6 +43,7 @@ public sealed class ProbeRunner
         Step(report, "Graphics", ReadGraphics);
         Step(report, "Power", s => ReadPower(s, report));
         Step(report, "Xbox Full Screen Experience", s => ReadFullScreenExperience(s, report));
+        Step(report, "Windows tweaks (read-only)", ReadWindowsTweaks);
 
         _log.Info($"Probe finished in {started.ElapsedMilliseconds} ms.");
         return report.Build(DateTimeOffset.Now, appVersion);
@@ -285,6 +287,14 @@ public sealed class ProbeRunner
             null => "not set",
             var other => other.ToString(),
         });
+    }
+
+    private void ReadWindowsTweaks(ProbeReportBuilder.SectionBuilder s)
+    {
+        foreach (var entry in WindowsTweakReport.Entries(new WindowsTweakFactsReader(_log).Read()))
+        {
+            s.Add(entry.Label, entry.Value, entry.Note, entry.Status);
+        }
     }
 
     private static string Answer(bool? value) => value switch

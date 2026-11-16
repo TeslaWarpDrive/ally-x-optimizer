@@ -4,6 +4,7 @@ using AllyTuner.Core.Detection;
 using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
 using AllyTuner.Core.Settings;
+using AllyTuner.Core.Tweaks;
 using AllyTuner.Platform.Windows;
 
 namespace AllyTuner;
@@ -27,13 +28,20 @@ public sealed class AppServices
         Journal = new ChangeJournal(dataDirectory, log);
         Gate = new WriteGate(() => Settings);
 
+        // Windows tweaks and startup apps are read (never written) through this; it also describes the exact write
+        // each change would make, which the dry-run log records.
+        var factsReader = new WindowsTweakFactsReader(log);
+        TweakReader = new TweakSettingReader(factsReader.Read, log);
+
         // The only writer in this build cannot touch hardware; the gate keeps every change a dry-run anyway.
-        Changes = new SafeChangeService(TunableSettings.All, Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource);
+        Changes = new SafeChangeService(
+            [.. TunableSettings.All, .. WindowsTweaks.All], Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource,
+            reader: TweakReader, describer: TweakReader, resolve: StartupApps.Resolve);
         Overrides = new OverrideMonitor(Changes);
 
-        // Checks read-back values every 30 s (MainWindow schedules it). Nothing in this build can be read back,
-        // and nothing is applied live, so it has nothing to compare yet; Phase 3 adds readable Windows settings.
-        OverrideWatcher = new OverrideWatcher(Overrides, Changes, reader: null, () => Settings.OverridePolicy, PossibleOverrideCauses, log);
+        // Checks read-back values every 30 s (MainWindow schedules it). The Windows tweaks can be read back; nothing is
+        // applied live in this build, so it has nothing to compare yet.
+        OverrideWatcher = new OverrideWatcher(Overrides, Changes, TweakReader, () => Settings.OverridePolicy, PossibleOverrideCauses, log);
         AppVersion = typeof(AppServices).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     }
@@ -56,6 +64,9 @@ public sealed class AppServices
     public SafeChangeService Changes { get; }
 
     public OverrideMonitor Overrides { get; }
+
+    /// <summary>Reads the Windows tweaks and startup apps (cached for a few seconds).</summary>
+    public TweakSettingReader TweakReader { get; }
 
     /// <summary>The periodic override check (warn or re-apply, per the Settings choice).</summary>
     public OverrideWatcher OverrideWatcher { get; }

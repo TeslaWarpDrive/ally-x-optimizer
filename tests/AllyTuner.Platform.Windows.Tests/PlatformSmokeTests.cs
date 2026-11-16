@@ -26,7 +26,7 @@ public class PlatformSmokeTests
             File.WriteAllText(outPath, text);
         }
 
-        foreach (var title in new[] { "Device identity", "ASUS control interface (ATKACPI)", "ASUS and Armoury Crate software", "Graphics", "Power", "Xbox Full Screen Experience" })
+        foreach (var title in new[] { "Device identity", "ASUS control interface (ATKACPI)", "ASUS and Armoury Crate software", "Graphics", "Power", "Xbox Full Screen Experience", "Windows tweaks (read-only)" })
         {
             Assert.Contains(report.Sections, s => s.Title == title);
         }
@@ -104,5 +104,18 @@ public class PlatformSmokeTests
         Assert.False(status.AsusAcpi.Opened);
         Assert.NotNull(status.AsusSoftware);
         Assert.Equal(ArmouryCrateState.NotFound, status.AsusSoftware!.ArmouryCrate);
+    }
+
+    [Fact]
+    public void Windows_tweak_facts_read_without_throwing_and_registry_reads_succeed()
+    {
+        var facts = new WindowsTweakFactsReader(Log).Read();
+
+        // Plain registry reads must work on any Windows machine; WMI features and power modes may be missing on a server runner.
+        Assert.DoesNotContain(AllyTuner.Core.Tweaks.WindowsTweaks.GameModeId, facts.Failed);
+        Assert.DoesNotContain(AllyTuner.Core.Tweaks.WindowsTweaks.GpuSchedulingId, facts.Failed);
+        Assert.DoesNotContain(AllyTuner.Core.Tweaks.WindowsTweaks.WindowedGamesId, facts.Failed);
+        Assert.DoesNotContain(AllyTuner.Core.Tweaks.StartupApps.Group, facts.Failed);
+        Assert.NotNull(facts.StartupEntries);
     }
 }

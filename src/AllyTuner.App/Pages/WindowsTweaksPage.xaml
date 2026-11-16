@@ -1,0 +1,46 @@
+<Page
+    x:Class="AllyTuner.Pages.WindowsTweaksPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Windows tweaks" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{StaticResource AuroraMutedBrush}"
+            Text="Windows settings that matter for gaming, read live from this device. Every change is confirmed, recorded in the change log and can be undone there." />
+      </StackPanel>
+
+      <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" Title="Restart to finish" />
+
+      <Border Style="{StaticResource HeroCardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Recommended for an always-plugged-in Ally" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock x:Name="RecommendedSummary" Style="{StaticResource CardDetailTextStyle}" Text="Checking the current settings…" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button x:Name="ApplyRecommendedButton" Content="Apply recommended…" Style="{StaticResource TouchAccentButtonStyle}" Click="ApplyRecommended_Click" />
+            <Button x:Name="RestoreButton" Content="Restore original settings…" Style="{StaticResource TouchButtonStyle}" Click="Restore_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <StackPanel x:Name="TweakList" Spacing="12" />
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Startup apps" Style="{StaticResource SectionTitleTextStyle}" />
+        <TextBlock
+            x:Name="StartupSummary"
+            Style="{StaticResource CardDetailTextStyle}"
+            Text="Apps that start by themselves when you sign in. Turning one off keeps it installed, the same as in Task Manager." />
+      </StackPanel>
+      <StackPanel x:Name="StartupList" Spacing="12" />
+    </StackPanel>
+  </ScrollViewer>
+</Page>

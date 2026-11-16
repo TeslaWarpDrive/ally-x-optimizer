@@ -16,6 +16,16 @@ public interface ISettingWriter
 public interface ISettingReader
 {
     int? TryRead(SettingDefinition setting);
+
+    /// <summary>Why the setting cannot be changed on this device right now (for example locked by policy), or null.</summary>
+    string? UnavailableReason(SettingDefinition setting) => null;
+}
+
+/// <summary>Describes exactly what a write would do (registry value, feature, API call), for the change log and dry-run.</summary>
+public interface IWriteDescriber
+{
+    /// <summary>Plain text such as "set HKCU\...\AutoGameModeEnabled to 1 (REG_DWORD)", or null when unknown.</summary>
+    string? DescribeWrite(SettingDefinition setting, int value);
 }
 
 /// <summary>
@@ -49,6 +59,8 @@ public sealed class SafeChangeService
     private readonly IAppLog _log;
     private readonly Func<PowerSource> _powerSource;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly IWriteDescriber? _describer;
+    private readonly Func<string, SettingDefinition?>? _resolve;
 
     public SafeChangeService(
         IReadOnlyList<SettingDefinition> settings,
@@ -58,7 +70,9 @@ public sealed class SafeChangeService
         IAppLog log,
         Func<PowerSource> powerSource,
         ISettingReader? reader = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        IWriteDescriber? describer = null,
+        Func<string, SettingDefinition?>? resolve = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(journal);
@@ -74,15 +88,22 @@ public sealed class SafeChangeService
         _log = log;
         _powerSource = powerSource;
         _clock = clock ?? (() => DateTimeOffset.Now);
+        _describer = describer;
+        _resolve = resolve;
     }
 
+    /// <summary>The fixed settings. Settings found at run time (startup apps) come from the resolver instead.</summary>
     public IReadOnlyList<SettingDefinition> Settings { get; }
+
+    public ISettingReader? Reader => _reader;
 
     public ChangeJournal Journal => _journal;
 
     public WriteGate Gate => _gate;
 
-    public SettingDefinition? Find(string settingId) => Settings.FirstOrDefault(s => s.Id == settingId);
+    /// <summary>A fixed setting by ID, or one the resolver can rebuild from its ID (for example a startup app).</summary>
+    public SettingDefinition? Find(string settingId) =>
+        Settings.FirstOrDefault(s => s.Id == settingId) ?? _resolve?.Invoke(settingId);
 
     public ChangePlan Plan(string settingId, int requested, ChangeOrigin origin = ChangeOrigin.User)
     {
@@ -95,7 +116,75 @@ public sealed class SafeChangeService
         ArgumentNullException.ThrowIfNull(setting);
         var source = _powerSource();
         var (before, beforeSource) = CurrentValue(setting);
-        return new ChangePlan(setting, origin, ValueGuard.Check(setting, requested, source), before, beforeSource, _gate.Decide(setting), source);
+        var guard = UnavailableReason(setting) is { } reason
+            ? new GuardResult(requested, null, GuardOutcome.Refused, reason)
+            : ValueGuard.Check(setting, requested, source);
+        return new ChangePlan(setting, origin, guard, before, beforeSource, _gate.Decide(setting), source);
+    }
+
+    /// <summary>
+    /// Plans for every given setting that has a recommendation and is not already at it. Settings already at the
+    /// recommended value, or that cannot be changed here, are left out; <see cref="RecommendedSkips"/> lists them.
+    /// </summary>
+    public IReadOnlyList<ChangePlan> PlanRecommended(IEnumerable<SettingDefinition> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return settings
+            .Where(s => s.Recommended is not null)
+            .Select(s => Plan(s, s.Recommended!.Value, ChangeOrigin.Recommended))
+            .Where(p => p.CanProceed && !p.IsNoChange)
+            .ToList();
+    }
+
+    /// <summary>Why each recommended setting is not part of <see cref="PlanRecommended"/>, in plain words.</summary>
+    public IReadOnlyList<string> RecommendedSkips(IEnumerable<SettingDefinition> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var skips = new List<string>();
+        foreach (var setting in settings.Where(s => s.Recommended is not null))
+        {
+            var plan = Plan(setting, setting.Recommended!.Value, ChangeOrigin.Recommended);
+            if (!plan.CanProceed)
+            {
+                skips.Add($"{setting.Name}: skipped. {plan.Guard.Note}");
+            }
+            else if (plan.IsNoChange)
+            {
+                skips.Add($"{setting.Name}: already {setting.Format(plan.Before)}.");
+            }
+        }
+
+        return skips;
+    }
+
+    /// <summary>
+    /// Plans to put each given setting back to the value it had before Ally Tuner first changed it (the oldest
+    /// change-log entry with a known value before). Settings never changed, or already back, are left out.
+    /// </summary>
+    public IReadOnlyList<ChangePlan> PlanRestoreOriginals(IEnumerable<SettingDefinition> settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var oldestFirst = _journal.Records.Reverse().ToList();
+        var plans = new List<ChangePlan>();
+        foreach (var setting in settings)
+        {
+            var first = oldestFirst.FirstOrDefault(r => r.SettingId == setting.Id && r.CanUndo && r.Before is not null);
+            if (first is null)
+            {
+                continue;
+            }
+
+            var plan = Plan(setting, first.Before!.Value, ChangeOrigin.RestoreOriginal) with
+            {
+                Note = $"{setting.Format(first.Before)} is what it was before Ally Tuner first changed it ({first.Time.ToLocalTime():g}).",
+            };
+            if (plan.CanProceed && !plan.IsNoChange)
+            {
+                plans.Add(plan);
+            }
+        }
+
+        return plans;
     }
 
     /// <summary>
@@ -156,11 +245,12 @@ public sealed class SafeChangeService
 
     /// <summary>Plans for every setting with a safe default. Settings without one are listed by <see cref="NotResetDirectly"/>.</summary>
     public IReadOnlyList<ChangePlan> PlanResetToSafeDefaults() =>
-        Settings.Where(s => s.SafeDefault is not null)
+        Settings.Where(s => s.IncludedInReset && s.SafeDefault is not null)
             .Select(s => Plan(s, s.SafeDefault!.Value, ChangeOrigin.ResetToSafeDefaults))
             .ToList();
 
-    public IReadOnlyList<SettingDefinition> NotResetDirectly => Settings.Where(s => s.SafeDefault is null).ToList();
+    /// <summary>Settings in the reset that have no value of their own to reset to (their reset note explains).</summary>
+    public IReadOnlyList<SettingDefinition> NotResetDirectly => Settings.Where(s => s.IncludedInReset && s.SafeDefault is null).ToList();
 
     /// <summary>
     /// Carries out confirmed plans in order. Each is checked again first: if the gate is now stricter, it is
@@ -199,8 +289,10 @@ public sealed class SafeChangeService
             return Record(plan, gate, ChangeOutcome.Refused, $"Refused: {setting.Name} {Words(plan)}.", why);
         }
 
+        var write = Describe(setting, plan.Guard.Value!.Value);
         var detail = JoinDetail(gate.Reason, plan.Guard.Outcome == GuardOutcome.Clamped ? plan.Guard.Note : null, plan.Note,
-            by == ConfirmedBy.ReApplyPolicy ? "Re-applied by the override policy (a value you confirmed earlier)." : null);
+            by == ConfirmedBy.ReApplyPolicy ? "Re-applied by the override policy (a value you confirmed earlier)." : null,
+            write is null ? null : (gate.IsDryRun ? $"Would {write}." : $"Writes: {write}."));
 
         if (gate.IsDryRun)
         {
@@ -223,14 +315,53 @@ public sealed class SafeChangeService
             : Record(plan, gate, ChangeOutcome.Failed, $"Failed to set {setting.Name} {Words(plan)}.", JoinDetail(detail, result.Detail));
     }
 
+    private string? Describe(SettingDefinition setting, int value)
+    {
+        try
+        {
+            return _describer?.DescribeWrite(setting, value);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warn($"Could not describe the write for {setting.Name}.", ex);
+            return null;
+        }
+    }
+
+    private string? UnavailableReason(SettingDefinition setting)
+    {
+        try
+        {
+            return _reader?.UnavailableReason(setting);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warn($"Could not check whether {setting.Name} can be changed.", ex);
+            return null;
+        }
+    }
+
     private (int? Value, BeforeSource Source) CurrentValue(SettingDefinition setting)
     {
-        if (setting.ReadBack == ValueReadBack.Readable && _reader?.TryRead(setting) is { } read)
+        if (setting.ReadBack == ValueReadBack.Readable && SafeRead(setting) is { } read)
         {
             return (read, BeforeSource.ReadFromDevice);
         }
 
         return _journal.LastApplied(setting.Id) is { } applied ? (applied, BeforeSource.LastApplied) : (null, BeforeSource.Unknown);
+    }
+
+    private int? SafeRead(SettingDefinition setting)
+    {
+        try
+        {
+            return _reader?.TryRead(setting);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.Warn($"Could not read {setting.Name}.", ex);
+            return null;
+        }
     }
 
     private ChangeRecord Record(ChangePlan plan, GateDecision gate, ChangeOutcome outcome, string summary, string detail)

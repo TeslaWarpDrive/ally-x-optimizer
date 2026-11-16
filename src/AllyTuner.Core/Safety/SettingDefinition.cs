@@ -104,6 +104,27 @@ public sealed record SettingDefinition
     /// <summary>What Reset to Safe Defaults does for this setting, in plain words.</summary>
     public string ResetNote { get; init; } = string.Empty;
 
+    /// <summary>What the setting does, in one or two plain sentences, for the page that shows it.</summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>A caution shown in the confirmation, for example the security cost of turning a protection off.</summary>
+    public string Warning { get; init; } = string.Empty;
+
+    /// <summary>The value the brief recommends for an always-plugged-in Ally, or null when there is no recommendation.</summary>
+    public int? Recommended { get; init; }
+
+    /// <summary>
+    /// True when the way this setting is stored is documented only by community sources, not by Microsoft or ASUS.
+    /// Such settings stay dry-run until a Probe on the Ally confirms the format (see <see cref="WriteGate"/>).
+    /// </summary>
+    public bool NeedsDeviceCheck { get; init; }
+
+    /// <summary>False for settings Reset to Safe Defaults leaves alone (Windows tweaks are reversed from the change log instead).</summary>
+    public bool IncludedInReset { get; init; } = true;
+
+    /// <summary>Which page owns the setting, for example "asus" or "windows".</summary>
+    public string Group { get; init; } = string.Empty;
+
     /// <summary>What to do instead when a change cannot be undone (no earlier value and no safe default).</summary>
     public string NoUndoAdvice { get; init; } = "Use Reset to Safe Defaults instead.";
 

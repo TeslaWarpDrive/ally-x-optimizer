@@ -84,3 +84,10 @@ On-device testing waits until the whole app is finished. Then, for this part:
 5. With Armoury Crate running, the Safety page warns that it can change power settings.
 6. Settings: switch "When another app changes a setting back" and restart the app; the choice is kept.
 
+## Phase 3 (Windows tweaks), for the final Ally test
+
+1. **Windows tweaks** page: each card shows *Now:* with the same value as Windows Settings (Gaming > Game Mode; System > Display > Graphics; Windows Security > Device security > Core isolation; System > Power & battery > Power mode).
+2. Press *Apply recommended…*: the dialog lists only what differs. Memory integrity, VM Platform and GPU scheduling say they need a restart. Memory integrity shows its security warning, and Cancel is selected first. Simulate it: each step appears in the change log with a "Would set …" or "Would run dism.exe …" line, and **nothing changes in Windows Settings**.
+3. On one startup app, press *Turn off…* and simulate it. The log shows the StartupApproved write. Task Manager > Startup apps still shows it enabled.
+4. **Device check for the community-documented formats.** In Windows Settings, toggle *Hardware-accelerated GPU scheduling*, then restart. Toggle *Optimizations for windowed games*. In Task Manager, disable and re-enable one startup app. After each, run the Probe: the *Windows tweaks (read-only)* section must show the matching raw value (HwSchMode 2/1, `SwapEffectUpgradeEnable=1/0`, StartupApproved first byte 03/02). Send the reports; only then can those three stay eligible for live writes.
+
