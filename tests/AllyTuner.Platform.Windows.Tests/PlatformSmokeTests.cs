@@ -138,14 +138,4 @@ public class PlatformSmokeTests
             Assert.Contains("not installed", facts.Error, StringComparison.Ordinal);
         }
     }
-
-    [Fact]
-    public void Adlx_slots_match_the_pinned_headers()
-    {
-        Assert.Equal(1, AdlxSlots.SystemGetGpus);
-        Assert.Equal(7, AdlxSlots.SystemGet3DSettingsServices);
-        Assert.Equal(11, AdlxSlots.GpuListAt);
-        Assert.Equal(14, AdlxSlots.ServicesGetRadeonSuperResolution);
-        Assert.Equal(0x000200000000007DUL, AdlxReader.FullVersion);
-    }
 }

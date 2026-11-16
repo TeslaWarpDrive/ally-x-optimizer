@@ -59,7 +59,11 @@ public static class AmdFeatures
 
     public static SettingDefinition Boost { get; } = Feature(
         BoostId, "Radeon Boost", [Adlx3DSettings + "#L523-L732"],
-        "Lowers the resolution during fast motion to keep frame rates up.");
+        "Lowers the resolution during fast motion to keep frame rates up.") with
+    {
+        // I3DSettings.h #L670-L672: on some GPUs Boost and RSR cannot run together; enabling Boost disables RSR.
+        Warning = "On some AMD GPUs Radeon Super Resolution cannot run together with Radeon Boost, and AMD turns Super Resolution off. Check the Super Resolution card afterwards.",
+    };
 
     public static SettingDefinition Chill { get; } = Feature(
         ChillId, "Radeon Chill", [Adlx3DSettings + "#L241-L514"],
@@ -106,7 +110,14 @@ public static class AmdFeatures
             return null;
         }
 
-        var on = others.Where(id => facts.Features.TryGetValue(id, out var s) && s.Enabled).Select(id => ById(id)!.Name).ToList();
+        // A conflicting feature that did not read is unknown, not off: AMD might switch it off unrecorded.
+        var unknown = others.Where(id => !facts.Features.ContainsKey(id)).Select(id => ById(id)!.Name).ToList();
+        if (unknown.Count > 0)
+        {
+            return $"{setting.Name} cannot run together with {string.Join(" or ", unknown)}, and Ally Tuner could not read whether {(unknown.Count == 1 ? "it is" : "they are")} on. Read the AMD settings again, or check in AMD Software, before turning {setting.Name} on.";
+        }
+
+        var on = others.Where(id => facts.Features[id] is { Supported: true, Enabled: true }).Select(id => ById(id)!.Name).ToList();
         return on.Count == 0
             ? null
             : $"{setting.Name} cannot run together with {string.Join(" or ", on)}, and AMD would turn {(on.Count == 1 ? "it" : "them")} off without Ally Tuner recording it. Turn {string.Join(" and ", on)} off first.";
@@ -164,7 +175,7 @@ public sealed class AmdSettingReader : ISettingReader, IWriteDescriber
 
     public bool HasRead => !ReferenceEquals(Facts, AmdFacts.NotRead);
 
-    /// <summary>Reads ADLX now. Called only on an explicit request (a button or Apply recommended), never on a timer.</summary>
+    /// <summary>Reads ADLX now. Called only on an explicit request (the "Read AMD settings" button), never on a timer.</summary>
     public AmdFacts Refresh()
     {
         AmdFacts facts;

@@ -132,6 +132,60 @@ public sealed partial class AmdFeaturesTests : IDisposable
     }
 
     [Fact]
+    public void Turning_boost_on_shows_the_super_resolution_caution()
+    {
+        Facts = Read(antiLag: false, chill: false, boost: false, rsr: true);
+        Reader.Refresh();
+        var plan = Service.Plan(AmdFeatures.Boost, 1);
+        Assert.True(plan.CanProceed); // "some GPUs": a caution, not a refusal
+        Assert.Contains(AmdFeatures.Boost.Warning, plan.Confirmation.Lines);
+        Assert.Contains("Super Resolution", AmdFeatures.Boost.Warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_conflicting_feature_that_did_not_read_counts_as_unknown_not_off()
+    {
+        Facts = new AmdFacts
+        {
+            Available = true,
+            Features = new Dictionary<string, AmdFeatureState>
+            {
+                [AmdFeatures.AntiLagId] = new(true, false),
+                [AmdFeatures.BoostId] = new(true, false),
+                // Chill missing: its read failed
+            },
+        };
+        Reader.Refresh();
+
+        var antiLag = Service.Plan(AmdFeatures.AntiLag, 1);
+        Assert.False(antiLag.CanProceed);
+        Assert.Contains("could not read whether it is on", antiLag.Guard.Note, StringComparison.Ordinal);
+        Assert.True(Service.Plan(AmdFeatures.AntiLag, 0).CanProceed);
+
+        // An unsupported conflicting feature cannot be on, so it does not block.
+        Facts = Read(antiLag: false, chill: true, boost: false, rsr: false) with
+        {
+            Features = new Dictionary<string, AmdFeatureState>(Read(false, false, false, false).Features) { [AmdFeatures.ChillId] = new(false, false) },
+        };
+        Reader.Refresh();
+        Assert.True(Service.Plan(AmdFeatures.AntiLag, 1).CanProceed);
+    }
+
+    [Fact]
+    public async Task The_conflict_is_checked_again_when_the_step_runs()
+    {
+        Reader.Refresh();
+        var plan = Service.Plan(AmdFeatures.AntiLag, 1);
+        Assert.True(plan.CanProceed);
+
+        Facts = Read(antiLag: false, chill: true, boost: false, rsr: false); // Chill turned on in AMD Software meanwhile
+        Reader.Refresh();
+        var record = Assert.Single(await Service.ExecuteAsync(plan.Confirm()));
+        Assert.Equal(ChangeOutcome.Refused, record.Outcome);
+        Assert.Contains("Radeon Chill", record.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Platform_adlx_code_has_no_setter_calls()
     {
         var platform = Path.Combine(RepoRoot(), "src", "AllyTuner.Platform.Windows");
