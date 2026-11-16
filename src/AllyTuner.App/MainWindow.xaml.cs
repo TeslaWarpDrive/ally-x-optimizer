@@ -4,7 +4,6 @@ using AllyTuner.Core.Safety;
 using AllyTuner.Pages;
 using AllyTuner.Safety;
 using AllyTuner.Services;
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -19,7 +18,7 @@ namespace AllyTuner;
 public sealed partial class MainWindow : Window
 {
     private readonly GamepadService _gamepad;
-    private readonly DispatcherQueueTimer _overrideTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _overrideTimer;
 
     // Shared with GamepadService so one physical press never moves focus twice (see InputArbiter).
     private readonly InputArbiter _inputArbiter = new();
