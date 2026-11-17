@@ -45,7 +45,11 @@ internal static class SafetyDialogs
             Title = text.Title,
             Content = new ScrollViewer { Content = body },
             CloseButtonText = text.CloseButton,
+
+            // Cancel stays the default (and accent) button, so pressing A straight away never confirms.
             DefaultButton = ContentDialogButton.Close,
+            CloseButtonStyle = (Style)Application.Current.Resources["DialogDefaultButtonStyle"],
+            PrimaryButtonStyle = (Style)Application.Current.Resources["DialogButtonStyle"],
         };
         if (text.PrimaryButton is { } primary)
         {
@@ -56,6 +60,26 @@ internal static class SafetyDialogs
         try
         {
             return await dialog.ShowAsync() == ContentDialogResult.Primary && text.PrimaryButton is not null;
+        }
+        finally
+        {
+            Current = null;
+        }
+    }
+
+    /// <summary>Shows another dialog (an editor) the same way: one at a time, and B on the controller cancels it.</summary>
+    public static async Task<ContentDialogResult> ShowDialogAsync(ContentDialog dialog)
+    {
+        ArgumentNullException.ThrowIfNull(dialog);
+        if (Current is not null)
+        {
+            return ContentDialogResult.None;
+        }
+
+        Current = dialog;
+        try
+        {
+            return await dialog.ShowAsync();
         }
         finally
         {
@@ -81,6 +105,21 @@ internal static class SafetyDialogs
         }
 
         return await App.Services.Changes.ExecuteAsync(plan.Confirm());
+    }
+
+    /// <summary>A batch (Apply recommended, Restore original): one confirmation, then each step in order.</summary>
+    public static async Task<IReadOnlyList<ChangeRecord>> ConfirmAndRunBatchAsync(XamlRoot root, ConfirmationText text, IReadOnlyList<ChangePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(plans);
+        if (!await ConfirmAsync(root, text))
+        {
+            App.Services.Log.Info($"Cancelled: {text.Title}");
+            return [];
+        }
+
+        App.Services.Log.Info($"Confirmed: {text.Title} ({plans.Count} step(s))");
+        return await App.Services.Changes.ExecuteAsync(ConfirmationText.ConfirmBatch(plans));
     }
 
     /// <summary>Reset to Safe Defaults: one confirmation for the whole reset, then each step in order.</summary>

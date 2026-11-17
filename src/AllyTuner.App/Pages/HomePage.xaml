@@ -3,16 +3,76 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ScrollViewer>
-    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
-      <StackPanel Spacing="4">
-        <TextBlock Text="Ally Tuner" Style="{StaticResource PageTitleTextStyle}" />
-        <TextBlock
-            Style="{StaticResource BodyLargeTextStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="Preview build: Ally Tuner only reads information right now. It does not change anything on your device." />
-      </StackPanel>
+    <StackPanel Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
 
-      <InfoBar x:Name="DeviceInfoBar" IsOpen="True" IsClosable="False" Severity="Informational" Title="Checking your device…" />
+      <!-- Hero: the device, its state at a glance, and the Aurora orb (the one decorative gradient). -->
+      <Border Style="{StaticResource HeroCardStyle}">
+        <Grid ColumnSpacing="24">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+
+          <StackPanel Spacing="10" VerticalAlignment="Center">
+            <TextBlock x:Name="HeroTitle" Text="Checking your device…" Style="{StaticResource DisplayTextStyle}" />
+            <TextBlock x:Name="HeroSummary" Style="{StaticResource BodyLargeTextStyle}" Foreground="{StaticResource AuroraMutedBrush}"
+                       Text="Ally Tuner reads this device's state. In this build it does not change anything." />
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,0">
+              <Border Style="{StaticResource ChipStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse x:Name="DeviceDot" Width="8" Height="8" Fill="{StaticResource StatusNeutralBrush}" VerticalAlignment="Center" />
+                  <TextBlock x:Name="DeviceChipText" Text="Detecting" Style="{StaticResource ChipTextStyle}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource ChipStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse Width="8" Height="8" Fill="{StaticResource StatusAttentionBrush}" VerticalAlignment="Center" />
+                  <TextBlock x:Name="DryRunChipText" Text="Dry-run" Style="{StaticResource ChipTextStyle}" />
+                </StackPanel>
+              </Border>
+              <Border Style="{StaticResource ChipStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse x:Name="PowerDot" Width="8" Height="8" Fill="{StaticResource StatusNeutralBrush}" VerticalAlignment="Center" />
+                  <TextBlock x:Name="PowerChipText" Text="Power" Style="{StaticResource ChipTextStyle}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+
+          <Grid Grid.Column="1" Width="176" Height="176" VerticalAlignment="Center" IsHitTestVisible="False">
+            <Ellipse Width="176" Height="176">
+              <Ellipse.Fill>
+                <RadialGradientBrush>
+                  <GradientStop Offset="0.55" Color="#408E9BFF" />
+                  <GradientStop Offset="1" Color="#008E9BFF" />
+                </RadialGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="136" Height="136" Fill="{StaticResource AuroraGradientBrush}" />
+            <Ellipse Width="136" Height="136">
+              <Ellipse.Fill>
+                <RadialGradientBrush Center="0.32,0.28" GradientOrigin="0.32,0.28" RadiusX="0.6" RadiusY="0.6">
+                  <GradientStop Offset="0" Color="#59FFFFFF" />
+                  <GradientStop Offset="1" Color="#00FFFFFF" />
+                </RadialGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="136" Height="136">
+              <Ellipse.Fill>
+                <RadialGradientBrush Center="0.75,0.85" GradientOrigin="0.75,0.85" RadiusX="0.7" RadiusY="0.7">
+                  <GradientStop Offset="0" Color="#000E0D18" />
+                  <GradientStop Offset="1" Color="#660E0D18" />
+                </RadialGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+          </Grid>
+        </Grid>
+      </Border>
 
       <Grid ColumnSpacing="16" RowSpacing="16">
         <Grid.ColumnDefinitions>
@@ -60,7 +120,7 @@
       </Grid>
 
       <StackPanel Spacing="4">
-        <TextBlock Text="System status" Style="{StaticResource CardValueTextStyle}" />
+        <TextBlock Text="System status" Style="{StaticResource SectionTitleTextStyle}" />
         <TextBlock x:Name="StatusUpdatedText" Style="{StaticResource CardDetailTextStyle}" Text="Checking…" />
       </StackPanel>
 
@@ -117,18 +177,21 @@
         </StackPanel>
       </Border>
 
-      <Border Style="{StaticResource CardStyle}">
+      <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+
+      <Border Style="{StaticResource HeroCardStyle}">
         <StackPanel Spacing="12">
           <TextBlock Text="Recommended Plugged-In Setup" Style="{StaticResource CardValueTextStyle}" />
           <TextBlock
               Style="{StaticResource CardDetailTextStyle}"
-              Text="One tap to apply high sustained power, 10 GB VRAM, Battery Care, an aggressive fan curve and Windows gaming settings, with a summary to confirm first. Coming in Phase 6." />
-          <Button Content="Apply Recommended Setup" Style="{StaticResource TouchAccentButtonStyle}" IsEnabled="False" />
+              Text="One confirmation for the brief's plugged-in setup: Performance Max (Turbo, 35 W sustained, Turbo fan curve), Battery Care at 80 %, 10 GB VRAM, Memory integrity and VM Platform off, Game Mode, GPU scheduling, windowed-game optimizations, best-performance power mode and Radeon Anti-Lag. CPU Boost stays on. Plugged in only. Steps already in place are skipped. Every step is logged; each can be undone from the change log except the three power limits the first time (the device cannot report them, so there is no earlier value; Reset to Safe Defaults brings back the firmware's own)." />
+          <Button x:Name="RecommendedButton" Content="Apply Recommended Setup…" Style="{StaticResource TouchAccentButtonStyle}" Click="RecommendedButton_Click" />
+          <TextBlock x:Name="RecommendedStatus" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
       </Border>
 
       <StackPanel Spacing="12">
-        <TextBlock Text="Diagnostics" Style="{StaticResource CardValueTextStyle}" />
+        <TextBlock Text="Diagnostics" Style="{StaticResource SectionTitleTextStyle}" />
         <StackPanel Orientation="Horizontal" Spacing="12">
           <Button x:Name="SaveReportButton" Content="Save diagnostics report" Style="{StaticResource TouchAccentButtonStyle}" Click="SaveReportButton_Click" />
           <Button Content="Open reports folder" Style="{StaticResource TouchButtonStyle}" Click="OpenReportsButton_Click" />

@@ -68,9 +68,13 @@ public sealed partial class ProbePage : Page
                 Text = entry.Value,
                 Style = (Style)Application.Current.Resources["BodyLargeTextStyle"],
             };
-            if (entry.Status is ProbeStatus.Attention or ProbeStatus.Failed
-                && Application.Current.Resources.TryGetValue("SystemFillColorCautionBrush", out var caution)
-                && caution is Brush brush)
+            var statusKey = entry.Status switch
+            {
+                ProbeStatus.Failed => "StatusProblemBrush",
+                ProbeStatus.Attention => "StatusAttentionBrush",
+                _ => null,
+            };
+            if (statusKey is not null && Application.Current.Resources.TryGetValue(statusKey, out var status) && status is Brush brush)
             {
                 value.Foreground = brush;
             }

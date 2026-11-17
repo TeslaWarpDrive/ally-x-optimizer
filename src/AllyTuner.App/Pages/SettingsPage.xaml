@@ -3,7 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ScrollViewer>
-    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+    <StackPanel Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
+
       <TextBlock Text="Settings" Style="{StaticResource PageTitleTextStyle}" />
 
       <Border Style="{StaticResource CardStyle}">
@@ -24,8 +30,8 @@
               Text="Armoury Crate or AMD Software can change settings Ally Tuner applied. While Ally Tuner is open it checks every 30 seconds. Only settings that were changed live and that Windows or the device can report are checked; for the others, you get a warning while Armoury Crate is running." />
           <TextBlock x:Name="OverrideStatusText" Style="{StaticResource CardDetailTextStyle}" />
           <RadioButtons x:Name="OverridePolicyChoice" SelectionChanged="OverridePolicyChoice_SelectionChanged">
-            <RadioButton MinHeight="48" FontSize="16" Content="Warn me and leave it (recommended)" Tag="Warn" />
-            <RadioButton MinHeight="48" FontSize="16" Content="Apply my setting again (stops after 3 times in 10 minutes)" Tag="ReApply" />
+            <RadioButton MinHeight="56" FontSize="16" Content="Warn me and leave it (recommended)" Tag="Warn" />
+            <RadioButton MinHeight="56" FontSize="16" Content="Apply my setting again (stops after 3 times in 10 minutes)" Tag="ReApply" />
           </RadioButtons>
         </StackPanel>
       </Border>

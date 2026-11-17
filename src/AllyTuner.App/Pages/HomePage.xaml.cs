@@ -29,6 +29,7 @@ public sealed partial class HomePage : Page
     {
         var services = App.Services;
         DryRunValue.Text = services.Gate.EverythingIsDryRun ? "On" : "Off for released settings";
+        DryRunChipText.Text = services.Gate.EverythingIsDryRun ? "Dry-run" : "Live for released settings";
         VersionDetail.Text = $"Ally Tuner {services.AppVersion}";
 
         // "Detect on launch and continuously": refresh the live status while Home is showing.
@@ -47,9 +48,9 @@ public sealed partial class HomePage : Page
 #pragma warning restore CA1031
         {
             services.Log.Error("Reading system information failed.", ex);
-            DeviceInfoBar.Severity = InfoBarSeverity.Error;
-            DeviceInfoBar.Title = "Could not read device information";
-            DeviceInfoBar.Message = "Details are in the log. Ally Tuner will not change anything.";
+            HeroTitle.Text = "Could not read device information";
+            HeroSummary.Text = "Details are in the log. Ally Tuner will not change anything.";
+            SetChip(DeviceDot, DeviceChipText, "StatusProblemBrush", "Unknown device");
         }
     }
 
@@ -72,14 +73,23 @@ public sealed partial class HomePage : Page
 
         OsValue.Text = snapshot.OsDescription;
 
-        DeviceInfoBar.Title = snapshot.Classification.Kind switch
+        HeroTitle.Text = snapshot.Classification.Kind switch
         {
-            DeviceKind.RogXboxAllyX => "ROG Xbox Ally X detected",
-            DeviceKind.OtherRogAlly => "Different ROG Ally model",
+            DeviceKind.RogXboxAllyX => "ROG Xbox Ally X",
+            DeviceKind.OtherRogAlly => "A different ROG Ally model",
             _ => "Not an ROG Xbox Ally X",
         };
-        DeviceInfoBar.Message = snapshot.Classification.Summary;
-        DeviceInfoBar.Severity = snapshot.Classification.IsSupported ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+        HeroSummary.Text = snapshot.Classification.Summary;
+        SetChip(DeviceDot, DeviceChipText,
+            snapshot.Classification.IsSupported ? "StatusGoodBrush" : "StatusAttentionBrush",
+            snapshot.Classification.IsSupported ? "Supported" : "Not supported");
+    }
+
+    /// <summary>Sets a status chip's dot colour (a Status*Brush key) and text.</summary>
+    private static void SetChip(Microsoft.UI.Xaml.Shapes.Ellipse dot, TextBlock text, string brushKey, string label)
+    {
+        dot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[brushKey];
+        text.Text = label;
     }
 
     private async Task RefreshStatusAsync()
@@ -144,11 +154,15 @@ public sealed partial class HomePage : Page
             PowerDetail.Text = power.BatteryPercent is { } pct
                 ? $"Battery {pct} %."
                 : "Battery level not reported.";
+            SetChip(PowerDot, PowerChipText,
+                power.Source == PowerSource.AC ? "StatusGoodBrush" : "StatusNeutralBrush",
+                power.BatteryPercent is { } chipPct ? $"{PowerValue.Text} · {chipPct} %" : PowerValue.Text);
         }
         else
         {
             PowerValue.Text = "Unknown";
             PowerDetail.Text = "Could not read the power status.";
+            SetChip(PowerDot, PowerChipText, "StatusNeutralBrush", "Power unknown");
         }
 
         // Log only when something changes, so the 10-second refresh does not fill the log.
@@ -185,4 +199,49 @@ public sealed partial class HomePage : Page
         DiagnosticsExporter.OpenFolder(AppServices.ReportsDirectory);
 
     private void OpenProbeButton_Click(object sender, RoutedEventArgs e) => App.Shell?.ShowSection("probe");
+
+    /// <summary>
+    /// The one-click setup (Phase 6): reads everything fresh (including AMD settings, as part of this explicit action),
+    /// plans every step, shows one confirmation and runs it. A dry-run in this build.
+    /// </summary>
+    private async void RecommendedButton_Click(object sender, RoutedEventArgs e)
+    {
+        RecommendedButton.IsEnabled = false;
+        RecommendedStatus.Text = "Checking the current settings…";
+        try
+        {
+            var services = App.Services;
+            var source = await Task.Run(services.CurrentPowerSource);
+            if (Core.Power.RecommendedSetup.PowerSourceBlock(source) is { } onBattery)
+            {
+                RecommendedStatus.Text = onBattery;
+                await Safety.SafetyDialogs.ShowMessageAsync(XamlRoot, "Plug the Ally in first", onBattery);
+                return;
+            }
+
+            var plans = await Task.Run(() =>
+            {
+                services.AmdReader.Refresh();
+                services.TweakReader.Invalidate();
+                services.ControlReader.Invalidate();
+                return Core.Power.RecommendedSetup.Plan(services.Changes);
+            });
+            var records = await Safety.SafetyDialogs.ConfirmAndRunBatchAsync(XamlRoot, Core.Power.RecommendedSetup.Confirmation(plans, source), plans);
+            RecommendedStatus.Text = records.Count == 0
+                ? string.Empty
+                : services.Gate.EverythingIsDryRun
+                    ? $"Simulated {records.Count} step(s). Nothing changed; each step is in the change log."
+                    : $"Applied {records.Count} step(s). Each is in the change log, where it can be undone.";
+            Safety.SettingCards.UpdateRestartOffer(RestartInfoBar);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Error("The recommended setup failed.", ex);
+            RecommendedStatus.Text = "Something went wrong. Details are in the log.";
+        }
+        finally
+        {
+            RecommendedButton.IsEnabled = true;
+        }
+    }
 }

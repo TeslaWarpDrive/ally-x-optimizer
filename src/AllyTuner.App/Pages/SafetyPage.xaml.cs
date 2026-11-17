@@ -2,8 +2,10 @@ using System.Globalization;
 using AllyTuner.Core.Detection;
 using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
+using AllyTuner.Core.Tweaks;
 using AllyTuner.Safety;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
@@ -19,7 +21,8 @@ public sealed partial class SafetyPage : Page
         InitializeComponent();
         var services = App.Services;
 
-        foreach (var setting in services.Changes.Settings)
+        // The mode and power limits only: every other control has its own page, and reading them here would block the UI.
+        foreach (var setting in TunableSettings.All)
         {
             SettingPicker.Items.Add(new ComboBoxItem { Content = setting.Name, Tag = setting.Id });
         }
@@ -62,6 +65,7 @@ public sealed partial class SafetyPage : Page
         if (gate.EverythingIsDryRun)
         {
             ModeValue.Text = "Dry-run: nothing on this device is changed";
+            ModeDot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["StatusAttentionBrush"];
             ModeDetail.Text = BuildSafety.LiveWritesInThisBuild
                 ? "Dry-run mode is on. Changes are simulated and recorded below."
                 : $"{BuildSafety.NoLiveWritesReason} Changes are simulated and recorded below, so each one can be checked before a later build is allowed to make it.";
@@ -69,6 +73,7 @@ public sealed partial class SafetyPage : Page
         else
         {
             ModeValue.Text = "Live for released settings";
+            ModeDot.Fill = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["StatusGoodBrush"];
             ModeDetail.Text = "Settings released after a watched dry-run change the device. All others stay dry-run.";
         }
     }
@@ -109,6 +114,7 @@ public sealed partial class SafetyPage : Page
             TrialSlider.Value = setting.RangeOnAc?.Min ?? 0;
         }
 
+        AutomationProperties.SetName(TrialSlider, $"Trial value for {setting.Name}");
         TrialRangeText.Text = $"Safe values {ValueGuard.PowerSourceWords(PowerSource.AC)}: {setting.DescribeAllowed(PowerSource.AC)}. "
             + $"On battery: {setting.DescribeAllowed(PowerSource.Battery)}.";
         ShowTrialValue();
@@ -120,7 +126,7 @@ public sealed partial class SafetyPage : Page
     {
         if (SelectedSetting is { } setting)
         {
-            TrialValueText.Text = $"Value: {setting.Format(TrialValue)}";
+            TrialValueText.Text = setting.Format(TrialValue);
         }
     }
 
@@ -201,11 +207,15 @@ public sealed partial class SafetyPage : Page
             Style = (Style)Application.Current.Resources["BodyLargeTextStyle"],
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
         });
-        text.Children.Add(new TextBlock
+        var meta = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        meta.Children.Add(OutcomeChip(record.Outcome));
+        meta.Children.Add(new TextBlock
         {
-            Text = $"{record.Time.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)} · {OutcomeWords(record.Outcome)} · {OriginWords(record.Origin)}",
+            Text = $"{record.Time.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)} · {OriginWords(record.Origin)}",
             Style = (Style)Application.Current.Resources["CardLabelTextStyle"],
+            VerticalAlignment = VerticalAlignment.Center,
         });
+        text.Children.Add(meta);
         if (!string.IsNullOrWhiteSpace(record.Detail))
         {
             text.Children.Add(new TextBlock { Text = record.Detail, Style = (Style)Application.Current.Resources["CardDetailTextStyle"] });
@@ -244,12 +254,35 @@ public sealed partial class SafetyPage : Page
         return new Border { Style = (Style)Application.Current.Resources["CardStyle"], Child = grid };
     }
 
+    /// <summary>Outcome as a chip: amber dry-run, teal applied, coral failed, grey refused.</summary>
+    private static Border OutcomeChip(ChangeOutcome outcome)
+    {
+        var resources = Application.Current.Resources;
+        var brushKey = outcome switch
+        {
+            ChangeOutcome.Simulated => "StatusAttentionBrush",
+            ChangeOutcome.Applied => "StatusGoodBrush",
+            ChangeOutcome.Failed => "StatusProblemBrush",
+            _ => "StatusNeutralBrush",
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        row.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Fill = (Microsoft.UI.Xaml.Media.Brush)resources[brushKey],
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        row.Children.Add(new TextBlock { Text = OutcomeWords(outcome), Style = (Style)resources["ChipTextStyle"] });
+        return new Border { Style = (Style)resources["ChipStyle"], Child = row };
+    }
+
     private static string OutcomeWords(ChangeOutcome outcome) => outcome switch
     {
-        ChangeOutcome.Simulated => "dry-run",
-        ChangeOutcome.Applied => "applied",
-        ChangeOutcome.Failed => "FAILED",
-        _ => "refused",
+        ChangeOutcome.Simulated => "Dry-run",
+        ChangeOutcome.Applied => "Applied",
+        ChangeOutcome.Failed => "Failed",
+        _ => "Refused",
     };
 
     private static string OriginWords(ChangeOrigin origin) => origin switch

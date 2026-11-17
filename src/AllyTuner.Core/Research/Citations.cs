@@ -19,6 +19,8 @@ public static class Citations
     public const string GHelperModeControl = GHelperCommit + "/app/Mode/ModeControl.cs";
     public const string GHelperExtra = GHelperCommit + "/app/Extra.cs";
     public const string GHelperFans = GHelperCommit + "/app/Fans.cs";
+    public const string GHelperBattery = GHelperCommit + "/app/Battery/BatteryControl.cs";
+    public const string GHelperAppConfig = GHelperCommit + "/app/AppConfig.cs";
 
     /// <summary>
     /// G-Helper issue #4843: a ROG Xbox Ally X (RC73XA) owner posted full DSTS endpoint scans
@@ -39,6 +41,34 @@ public static class Citations
     public const string HandheldCompanionAcpi = HandheldCompanionCommit + "/HandheldCompanion/Devices/ASUS/AsusACPI.cs";
     public const string HandheldCompanionDevice = HandheldCompanionCommit + "/HandheldCompanion/Devices/IDevice.cs";
     public const string HandheldCompanionServices = HandheldCompanionCommit + "/HandheldCompanion/Watchers/RogAllySpaceWatcher.cs";
+
+    // CPU Boost writes (Phase 4), Microsoft documentation, retrieved 2026-11-16.
+    public const string MsPowerWriteAcValueIndex = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwriteacvalueindex";
+    public const string MsPowerWriteDcValueIndex = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwritedcvalueindex";
+    public const string MsPowerSetActiveScheme = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetactivescheme";
+
+    // Windows tweaks (Phase 3). Microsoft documentation, retrieved 2026-11-15.
+    public const string MsMemoryIntegrity = "https://learn.microsoft.com/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity";
+    public const string MsWin32OptionalFeature = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-optionalfeature";
+    public const string MsWslManualInstall = "https://learn.microsoft.com/windows/wsl/install-manual";
+    public const string MsDismFeatures = "https://learn.microsoft.com/windows-hardware/manufacture/desktop/dism-operating-system-package-servicing-command-line-options";
+    public const string MsSettingsWindows11 = "https://learn.microsoft.com/windows/apps/develop/settings/settings-windows-11";
+    public const string MsPowerGetUserConfiguredAcPowerMode = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powergetuserconfiguredacpowermode";
+    public const string MsPowerGetUserConfiguredDcPowerMode = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powergetuserconfigureddcpowermode";
+    public const string MsPowerSetUserConfiguredAcPowerMode = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetuserconfiguredacpowermode";
+    public const string MsPowerSetUserConfiguredDcPowerMode = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetuserconfigureddcpowermode";
+    public const string MsRunKeys = "https://learn.microsoft.com/windows/win32/setupapi/run-and-runonce-registry-keys";
+    public const string MsWindowedGames = "https://support.microsoft.com/topic/3f006843-2c7e-4ed0-9a5e-f9389e535952";
+
+    // Windows tweaks without Microsoft documentation: open-source projects that read and write them.
+    // Winhance (memstechtips/Winhance), commit db80ecf, 2026-11-15.
+    public const string WinhanceGaming = "https://github.com/memstechtips/Winhance/blob/db80ecfcf6762a7b856860930d9f4ee17bf1e67c/src/Winhance.Core/Features/Optimize/Models/GamingAndPerformanceOptimizations.cs";
+
+    // Bulk Crap Uninstaller (BCUninstaller/Bulk-Crap-Uninstaller), commit 30da609, 2026-11-15.
+    public const string BcuStartupDisable = "https://github.com/BCUninstaller/Bulk-Crap-Uninstaller/blob/30da609384c98ba6e35c6530129541ea4ff3970a/source/UninstallTools/Startup/Normal/NewStartupDisable.cs";
+
+    // Greenshot (greenshot/greenshot), commit 4637cbc, 2026-11-15.
+    public const string GreenshotStartup = "https://github.com/greenshot/greenshot/blob/4637cbc7dc0a22368191bc2df82c07e5926d657f/src/Greenshot/Helpers/StartupHelper.cs";
 
     // Microsoft documentation.
     public const string MsDeviceIoControl = "https://learn.microsoft.com/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol";
@@ -65,4 +95,7 @@ public static class Citations
     // AMD ADLX SDK (GPUOpen-LibrariesAndSDKs/ADLX), commit 32b5a74 (ADLX 2.0.0.125).
     public const string AdlxCommit = "https://github.com/GPUOpen-LibrariesAndSDKs/ADLX/blob/32b5a740d42295c5dfe9026b9f52683da0f3af91";
     public const string AdlxHeader = AdlxCommit + "/SDK/Include/ADLX.h";
+    public const string AdlxDefines = AdlxCommit + "/SDK/Include/ADLXDefines.h";
+    public const string AdlxSystem = AdlxCommit + "/SDK/Include/ISystem.h";
+    public const string Adlx3DSettings = AdlxCommit + "/SDK/Include/I3DSettings.h";
 }

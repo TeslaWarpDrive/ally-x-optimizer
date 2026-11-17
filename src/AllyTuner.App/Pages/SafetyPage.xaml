@@ -3,19 +3,28 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ScrollViewer>
-    <StackPanel Padding="32,28,32,32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
+    <StackPanel Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
+
       <StackPanel Spacing="4">
         <TextBlock Text="Safety and changes" Style="{StaticResource PageTitleTextStyle}" />
         <TextBlock
             Style="{StaticResource BodyLargeTextStyle}"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Foreground="{StaticResource AuroraMutedBrush}"
             Text="Every change goes through the same steps: checked against safe limits, confirmed by you, recorded here, and reversible." />
       </StackPanel>
 
       <Border Style="{StaticResource CardStyle}">
         <StackPanel Spacing="8">
           <TextBlock Text="Write mode" Style="{StaticResource CardLabelTextStyle}" />
-          <TextBlock x:Name="ModeValue" Style="{StaticResource CardValueTextStyle}" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Ellipse x:Name="ModeDot" Width="12" Height="12" Fill="{StaticResource StatusAttentionBrush}" VerticalAlignment="Center" />
+            <TextBlock x:Name="ModeValue" Style="{StaticResource CardValueTextStyle}" />
+          </StackPanel>
           <TextBlock x:Name="ModeDetail" Style="{StaticResource CardDetailTextStyle}" />
           <TextBlock x:Name="OverrideWatchText" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
@@ -41,8 +50,15 @@
               Text="Pick a setting and a value to see the confirmation, the clamping and the change log at work. The slider goes past the safe range on purpose. In this build nothing is written to the device." />
           <ComboBox x:Name="SettingPicker" Header="Setting" MinWidth="360" MinHeight="56" FontSize="17" SelectionChanged="SettingPicker_SelectionChanged" />
           <StackPanel Spacing="4">
-            <TextBlock x:Name="TrialValueText" Style="{StaticResource CardValueTextStyle}" />
-            <Slider x:Name="TrialSlider" MinHeight="48" StepFrequency="1" SmallChange="1" ValueChanged="TrialSlider_ValueChanged" />
+            <TextBlock Text="Value" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="TrialValueText" Style="{StaticResource MetricTextStyle}" />
+            <Slider
+                x:Name="TrialSlider"
+                MinHeight="56"
+                StepFrequency="1"
+                SmallChange="1"
+                AutomationProperties.Name="Trial value"
+                ValueChanged="TrialSlider_ValueChanged" />
             <TextBlock x:Name="TrialRangeText" Style="{StaticResource CardDetailTextStyle}" />
           </StackPanel>
           <Button Content="Preview change…" Style="{StaticResource TouchButtonStyle}" Click="PreviewButton_Click" />
@@ -50,7 +66,7 @@
       </Border>
 
       <StackPanel Spacing="4">
-        <TextBlock Text="Change log" Style="{StaticResource CardValueTextStyle}" />
+        <TextBlock Text="Change log" Style="{StaticResource SectionTitleTextStyle}" />
         <TextBlock x:Name="LogSummary" Style="{StaticResource CardDetailTextStyle}" IsTextSelectionEnabled="True" />
       </StackPanel>
       <StackPanel x:Name="LogList" Spacing="12" />

@@ -72,6 +72,11 @@ public sealed class WriteGate
             return new GateDecision(WriteMode.DryRun, $"{setting.Name} is not released for live changes yet. Its dry-run has to be watched on the Ally first.");
         }
 
+        if (setting.NeedsDeviceCheck)
+        {
+            return new GateDecision(WriteMode.DryRun, $"How Windows stores {setting.Name} is documented only by community sources, so it stays dry-run until a Probe on the Ally confirms it.");
+        }
+
         if (setting.AsusDeviceId is { } id && _endpointConfirmation(id) != DeviceConfirmation.ConfirmedByProbe)
         {
             return new GateDecision(WriteMode.DryRun, $"ASUS ID 0x{id:X8} for {setting.Name} is not confirmed on this device.");

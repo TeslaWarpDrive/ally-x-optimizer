@@ -278,7 +278,7 @@ public sealed class SafeChangeServiceTests : IDisposable
     [Fact]
     public async Task No_hardware_writer_always_fails()
     {
-        var result = await NoHardwareWriter.Instance.WriteAsync(TunableSettings.SustainedPower, 30);
+        var result = await NoHardwareWriter.Instance.WriteAsync(TunableSettings.SustainedPower, 30, restoreRaw: null);
         Assert.False(result.Succeeded);
     }
 
