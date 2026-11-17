@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        TitleLogo.Source = LogoImages.Load("LogoTitleBar.png");
 
         // Aurora title bar: content runs under it, caption buttons stay (minimise, close) in Aurora colours.
         ExtendsContentIntoTitleBar = true;

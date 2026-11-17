@@ -45,13 +45,13 @@
           </StackPanel>
 
           <Image
+              x:Name="HeroLogo"
               Grid.Column="1"
               Width="160"
               Height="160"
               VerticalAlignment="Center"
               IsHitTestVisible="False"
               Stretch="Uniform"
-              Source="ms-appx:///Assets/LogoTile.png"
               AutomationProperties.AccessibilityView="Raw" />
         </Grid>
       </Border>

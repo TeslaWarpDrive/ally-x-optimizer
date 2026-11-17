@@ -21,6 +21,7 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         InitializeComponent();
+        HeroLogo.Source = LogoImages.Load("LogoTile.png");
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }

@@ -55,18 +55,20 @@ public partial class BuildConsistencyTests
         var root = RepoRoot();
         var csproj = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "AllyTuner.App.csproj"));
         var iss = File.ReadAllText(Path.Combine(root, "installer", "AllyTuner.iss"));
-        var window = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "MainWindow.xaml"));
-        var home = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "Pages", "HomePage.xaml"));
+        var window = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "MainWindow.xaml.cs"));
+        var home = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "Pages", "HomePage.xaml.cs"));
         var manifest = File.ReadAllText(Path.Combine(root, "packaging", "Package.appxmanifest"));
 
         Assert.Contains("<ApplicationIcon>Assets\\AppIcon.ico</ApplicationIcon>", csproj, StringComparison.Ordinal);
         Assert.Contains("SetupIconFile=..\\src\\AllyTuner.App\\Assets\\AppIcon.ico", iss, StringComparison.Ordinal);
         Assert.Contains("WizardSmallImageFile=wizard-small.png", iss, StringComparison.Ordinal);
         Assert.Contains("WizardImageFile=wizard-large.png", iss, StringComparison.Ordinal);
-        Assert.Contains("Assets/LogoTitleBar.png", window, StringComparison.Ordinal);
-        Assert.Contains("Assets/LogoTile.png", home, StringComparison.Ordinal);
-        Assert.DoesNotContain("AuroraGradientBrush", window, StringComparison.Ordinal);
-        Assert.DoesNotContain("AuroraGradientBrush", home, StringComparison.Ordinal);
+        Assert.Contains("LogoTitleBar.png", window, StringComparison.Ordinal);
+        Assert.Contains("LogoTile.png", home, StringComparison.Ordinal);
+        var windowXaml = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "MainWindow.xaml"));
+        var homeXaml = File.ReadAllText(Path.Combine(root, "src", "AllyTuner.App", "Pages", "HomePage.xaml"));
+        Assert.DoesNotContain("AuroraGradientBrush", windowXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("AuroraGradientBrush", homeXaml, StringComparison.Ordinal);
 
         foreach (var relative in BrandFiles)
         {
