@@ -136,6 +136,20 @@ public sealed class ProbeRunner
         s.Add("Reads made", $"{facts.EndpointsRead} DSTS reads of {AsusEndpointCatalog.All.Count} catalogued IDs; {facts.EndpointsPresent} IDs present.");
         report.KeyResult("ASUS control interface", $"found; {facts.EndpointsPresent} of {AsusEndpointCatalog.All.Count} IDs present", ProbeStatus.Good);
 
+        var differences = BradleyAllyEvidence.Check(snapshot!.Identity.BiosVersion, readings);
+        if (differences.Count == 0)
+        {
+            report.KeyResult("Matches the reviewed results", $"yes: {BradleyAllyEvidence.CheckScope}", ProbeStatus.Good);
+        }
+        else
+        {
+            report.KeyResult("Matches the reviewed results", $"no: {differences.Count} difference(s)", ProbeStatus.Attention, $"Checked: {BradleyAllyEvidence.CheckScope} {string.Join(" ", differences)}");
+            foreach (var difference in differences)
+            {
+                s.Add("Differs from the reviewed results", difference, null, ProbeStatus.Attention);
+            }
+        }
+
         if (facts.Vram is { IsUsable: true } vram)
         {
             var current = vram.CurrentMb is { } mb ? VramOptions.FormatMb(mb) : "Auto";

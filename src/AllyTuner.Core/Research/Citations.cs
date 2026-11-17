@@ -18,6 +18,7 @@ public static class Citations
     public const string GHelperServices = GHelperCommit + "/app/Helpers/AsusService.cs";
     public const string GHelperModeControl = GHelperCommit + "/app/Mode/ModeControl.cs";
     public const string GHelperExtra = GHelperCommit + "/app/Extra.cs";
+    public const string GHelperFans = GHelperCommit + "/app/Fans.cs";
 
     /// <summary>
     /// G-Helper issue #4843: a ROG Xbox Ally X (RC73XA) owner posted full DSTS endpoint scans

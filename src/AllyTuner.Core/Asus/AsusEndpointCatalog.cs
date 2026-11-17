@@ -7,8 +7,8 @@ namespace AllyTuner.Core.Asus;
 /// open-source implementation; none is guessed. Phase 1 only READS these (DSTS) in the Probe.
 ///
 /// "Public RC73XA evidence" is what another owner's ROG Xbox Ally X returned in a scan posted to
-/// G-Helper issue #4843. It is useful for planning but is NOT confirmation: every entry stays
-/// <see cref="DeviceConfirmation.Unconfirmed"/> until Bradley's own Probe report matches.
+/// G-Helper issue #4843. It is useful for planning but is NOT confirmation. Confirmation comes only
+/// from Bradley's own Probe reports, recorded in <see cref="BradleyAllyEvidence"/> and applied here.
 /// See docs/RESEARCH.md for the full discussion.
 /// </summary>
 public static class AsusEndpointCatalog
@@ -20,10 +20,12 @@ public static class AsusEndpointCatalog
     // G-Helper AsusACPI.cs #L635-L666; Linux asus-wmi.c fan_curve_get_factory_default #L3618-L3647.
     private static readonly uint[] FanCurveModes = [0, 1, 2];
 
-    private const string NotInPublicScan = "Not in the public RC73XA scan, so probably absent on this model.";
+    // Neutral on purpose: the scan simply did not read these IDs. Whether this model has them comes from the
+    // reviewed Probe (BradleyAllyEvidence), not from the scan; the fan floors, for example, are present.
+    public const string NotInPublicScan = "Not in the public RC73XA scan.";
     private const string WriteOnlyLooking = "Present, but read 0 while G-Helper was applying 13 W, so reading it does not show the current limit.";
 
-    public static IReadOnlyList<AsusEndpoint> All { get; } =
+    public static IReadOnlyList<AsusEndpoint> All { get; } = BradleyAllyEvidence.ApplyTo(
     [
         // --- Performance mode -------------------------------------------------------------------
         new(0x00120075, "Performance mode (thermal policy)", AsusFeature.PerformanceMode, AsusValueKind.PerformanceMode,
@@ -98,7 +100,9 @@ public static class AsusEndpointCatalog
             "Context for Phase 4 fan curves.",
             "Present; 0x008D."),
 
-        // --- Fan curves (8 temperatures in °C, then 8 duty percentages) ------------------------
+        // --- Fan curves (8 temperatures in °C, then 8 duty percentages) and fan floors ----------
+        // A fan floor is 8 duty percentages for 30, 40, ... 100 °C, with no status word (G-Helper reads it
+        // with DeviceGetBuffer and plots floors[i] at 30 + 10 i °C: AsusACPI.cs #L668-L676, Fans.cs #L905-L908).
         new(0x00110024, "CPU fan curve", AsusFeature.FanCurves, AsusValueKind.FanCurve,
             AsusRequestShape.Standard, FanCurveModes, SourceAgreement.CrossChecked,
             [GHelperAcpi + "#L100", GHelperAcpi + "#L635-L666", LinuxAsusWmiHeader + "#L103", LinuxAsusWmi + "#L3604-L3647", HandheldCompanionAcpi + "#L47"],
@@ -114,14 +118,14 @@ public static class AsusEndpointCatalog
             [GHelperAcpi + "#L102", LinuxAsusWmiHeader + "#L105", HandheldCompanionAcpi + "#L49"],
             "Only if present.",
             NotInPublicScan),
-        new(0x00110026, "CPU fan floor", AsusFeature.FanCurves, AsusValueKind.Raw,
+        new(0x00110026, "CPU fan floor", AsusFeature.FanCurves, AsusValueKind.FanFloor,
             AsusRequestShape.Standard, NoArgument, SourceAgreement.SingleSource,
-            [GHelperAcpi + "#L104", GHelperAcpi + "#L668-L676"],
+            [GHelperAcpi + "#L104", GHelperAcpi + "#L668-L676", GHelperFans + "#L905-L908"],
             "Context: firmware minimum fan speeds, to keep custom curves above them.",
             NotInPublicScan),
-        new(0x00110027, "GPU fan floor", AsusFeature.FanCurves, AsusValueKind.Raw,
+        new(0x00110027, "GPU fan floor", AsusFeature.FanCurves, AsusValueKind.FanFloor,
             AsusRequestShape.Standard, NoArgument, SourceAgreement.SingleSource,
-            [GHelperAcpi + "#L105", GHelperAcpi + "#L668-L676"],
+            [GHelperAcpi + "#L105", GHelperAcpi + "#L668-L676", GHelperFans + "#L905-L908"],
             "Context: firmware minimum fan speeds, to keep custom curves above them.",
             NotInPublicScan),
 
@@ -172,7 +176,7 @@ public static class AsusEndpointCatalog
             [LinuxAsusWmiHeader + "#L131-L132"],
             "Context only (controller microcontroller power-save on the Ally).",
             "Present; 0, then 1 in a later scan."),
-    ];
+    ]);
 
     public static AsusEndpoint? ById(uint id) => All.FirstOrDefault(e => e.Id == id);
 }

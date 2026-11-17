@@ -15,7 +15,9 @@ public static class ProbeReportFormatter
         sb.AppendLine("Ally Tuner hardware probe report");
         sb.AppendLine("================================");
         sb.AppendLine("READ-ONLY: this probe only reads. It sent no settings to the device.");
-        sb.AppendLine("Every ASUS reading below is UNCONFIRMED until this report has been reviewed.");
+        sb.Append("ASUS readings marked \"confirmed\" matched the reviewed Probe of ").Append(BradleyAllyEvidence.ReportDate)
+            .Append(" (BIOS ").Append(BradleyAllyEvidence.BiosVersion).AppendLine("); UNCONFIRMED ones have not been matched.");
+        sb.AppendLine("The values in this report are new readings and count only once this report has been reviewed.");
         sb.AppendLine();
         Line(sb, "Generated", report.GeneratedAt.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture));
         Line(sb, "App version", report.AppVersion);
@@ -108,13 +110,23 @@ public static class ProbeReportFormatter
             _ => "unknown",
         });
         sb.Append("    reading: ").AppendLine(reading.Description);
-        sb.Append("    expected from public RC73XA scan: ").AppendLine(e.PublicRc73xaEvidence);
+        sb.Append("    expected from public RC73XA scan: ").AppendLine(reading.ExpectedFromPublicScan);
+        if (e.DeviceEvidence is { } seen)
+        {
+            sb.Append("    seen on the reviewed Ally: ").AppendLine(seen);
+        }
+
         sb.Append("    sources: ").Append(e.Agreement switch
         {
             SourceAgreement.CrossChecked => "cross-checked",
             SourceAgreement.Conflicting => "sources disagree",
             _ => "single source",
-        }).Append("; on this device: ").AppendLine(e.Confirmation == DeviceConfirmation.ConfirmedByProbe ? "confirmed" : "UNCONFIRMED");
+        }).Append("; on this device: ").AppendLine(e.Confirmation switch
+        {
+            DeviceConfirmation.ConfirmedByProbe => $"confirmed ({BradleyAllyEvidence.Label})",
+            DeviceConfirmation.AbsentOnDevice => $"absent ({BradleyAllyEvidence.Label})",
+            _ => "UNCONFIRMED",
+        });
     }
 
     private static void Line(StringBuilder sb, string label, string value) =>

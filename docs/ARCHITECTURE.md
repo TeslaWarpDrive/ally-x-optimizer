@@ -34,8 +34,10 @@ Platform/ProbeRunner            runs every read-only step; a failing step is rep
 App/Pages/ProbePage             Run probe -> report saved to Documents\Ally Tuner\probe-*.txt
 ```
 
-Every catalogued endpoint is `Unconfirmed` until Bradley's Probe report matches it; Phase 4 writes only to
-`ConfirmedByProbe` endpoints. `ReadOnlyGuardTests` scans `src/` and fails if a write path appears.
+`Core/Asus/BradleyAllyEvidence` records what Bradley's reviewed Probe reports showed for each endpoint
+(`ConfirmedByProbe`, `Unconfirmed` or `AbsentOnDevice`, with the quoted evidence). Each new Probe compares itself
+with that record and the BIOS version. Phase 4 writes only to `ConfirmedByProbe` endpoints.
+`ReadOnlyGuardTests` scans `src/` and fails if a write path appears.
 
 ## Controller navigation
 

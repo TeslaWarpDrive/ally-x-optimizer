@@ -61,7 +61,8 @@ public class ProbeReportFormatterTests
         Assert.Contains("0x00110024  CPU fan curve, mode 2 (Turbo)", text, StringComparison.Ordinal);
         Assert.Contains("call failed, Windows error 87", text, StringComparison.Ordinal);
         Assert.Contains("expected from public RC73XA scan:", text, StringComparison.Ordinal);
-        Assert.Contains("on this device: UNCONFIRMED", text, StringComparison.Ordinal);
+        Assert.Contains("on this device: confirmed (reviewed Probe 2026-11-15, BIOS RC73XA.319)", text, StringComparison.Ordinal);
+        Assert.Contains("seen on the reviewed Ally:", text, StringComparison.Ordinal);
     }
 
     [Fact]
