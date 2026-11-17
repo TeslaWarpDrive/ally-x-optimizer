@@ -4,8 +4,9 @@
   violet #B78CFF, pink #F49BDD) for native WinUI 3.
 
   Rules:
-  - The teal -> violet -> pink gradient appears only on the brand mark and the Home hero orb.
-    Everything else stays flat, so text stays easy to read on a 7-inch screen.
+  - The brand mark is the Handheld Boost tile (Assets/LogoTile.png). The teal -> violet ->
+    pink gradient appears only on the hero card edge. Everything else stays flat, so text
+    stays easy to read on a 7-inch screen.
   - Safety colours are separate from the decoration: amber = dry-run / attention, teal = good,
     coral = failed / destructive. They are never used for decoration.
   - Big targets (56 px buttons, 56 px menu items), body text 15-17 px, numbers in Bahnschrift.
@@ -49,14 +50,6 @@
   <SolidColorBrush x:Key="StatusNeutralBrush" Color="{StaticResource AuroraMuted}" />
   <SolidColorBrush x:Key="DryRunSurfaceBrush" Color="#26FFC857" />
   <SolidColorBrush x:Key="DryRunBorderBrush" Color="#8CFFC857" />
-
-  <!-- The one gradient, for the brand mark and the hero orb only. -->
-  <LinearGradientBrush x:Key="AuroraGradientBrush" StartPoint="0,0" EndPoint="1,1">
-    <GradientStop Offset="0" Color="{StaticResource AuroraTeal}" />
-    <GradientStop Offset="0.45" Color="#FF8E9BFF" />
-    <GradientStop Offset="0.8" Color="{StaticResource AuroraViolet}" />
-    <GradientStop Offset="1" Color="{StaticResource AuroraPink}" />
-  </LinearGradientBrush>
 
   <!-- Card surface: raised ink with a light top edge, like light catching glass. -->
   <SolidColorBrush x:Key="CardSurfaceBrush" Color="#E61B1A2F" />

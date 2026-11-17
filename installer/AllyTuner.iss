@@ -35,6 +35,10 @@ OutputBaseFilename=AllyTuner-Setup-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; Same icon as the app: Setup, Uninstall, and the wizard's small image.
+SetupIconFile=..\src\AllyTuner.App\Assets\AppIcon.ico
+WizardSmallImageFile=wizard-small.png
+WizardImageFile=wizard-large.png
 UninstallDisplayIcon={app}\AllyTuner.exe
 UninstallDisplayName=Ally Tuner
 CloseApplications=yes
