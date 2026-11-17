@@ -34,11 +34,13 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        TitleLogo.Source = LogoImages.Load("LogoTitleBar.png");
 
         // Aurora title bar: content runs under it, caption buttons stay (minimise, close) in Aurora colours.
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         StyleCaptionButtons();
+        SetWindowIcon();
         TitleVersionText.Text = App.Services.AppVersion;
 
         // Fill the Ally's screen. (Maximized, not full-screen, so the taskbar and Game Bar still work.)
@@ -228,6 +230,19 @@ public sealed partial class MainWindow : Window
             {
                 pulse.Stop();
             }
+        }
+    }
+
+    /// <summary>Taskbar, Alt-Tab, and the window icon. The title bar itself draws LogoTitleBar.png.</summary>
+    private void SetWindowIcon()
+    {
+        try
+        {
+            AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Warn("Could not set the window icon.", ex);
         }
     }
 

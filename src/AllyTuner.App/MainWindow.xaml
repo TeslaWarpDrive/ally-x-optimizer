@@ -43,7 +43,14 @@
     <!-- Custom title bar: the brand mark sits where the system title would be. -->
     <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
       <StackPanel Orientation="Horizontal" Spacing="10" Margin="20,0,0,0" VerticalAlignment="Center">
-        <Ellipse Width="18" Height="18" Fill="{StaticResource AuroraGradientBrush}" />
+        <Image
+            x:Name="TitleLogo"
+            Width="20"
+            Height="20"
+            VerticalAlignment="Center"
+            IsHitTestVisible="False"
+            Stretch="Uniform"
+            AutomationProperties.AccessibilityView="Raw" />
         <TextBlock Text="Ally Tuner" FontFamily="{StaticResource DisplayFontFamily}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource AuroraTextBrush}" VerticalAlignment="Center" />
         <TextBlock x:Name="TitleVersionText" FontSize="12" Foreground="{StaticResource AuroraMutedBrush}" VerticalAlignment="Center" />
       </StackPanel>

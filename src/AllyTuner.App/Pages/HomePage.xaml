@@ -10,7 +10,7 @@
         </TransitionCollection>
       </StackPanel.ChildrenTransitions>
 
-      <!-- Hero: the device, its state at a glance, and the Aurora orb (the one decorative gradient). -->
+      <!-- Hero: the device, its state at a glance, and the Handheld Boost tile. -->
       <Border Style="{StaticResource HeroCardStyle}">
         <Grid ColumnSpacing="24">
           <Grid.ColumnDefinitions>
@@ -44,33 +44,15 @@
             </StackPanel>
           </StackPanel>
 
-          <Grid Grid.Column="1" Width="176" Height="176" VerticalAlignment="Center" IsHitTestVisible="False">
-            <Ellipse Width="176" Height="176">
-              <Ellipse.Fill>
-                <RadialGradientBrush>
-                  <GradientStop Offset="0.55" Color="#408E9BFF" />
-                  <GradientStop Offset="1" Color="#008E9BFF" />
-                </RadialGradientBrush>
-              </Ellipse.Fill>
-            </Ellipse>
-            <Ellipse Width="136" Height="136" Fill="{StaticResource AuroraGradientBrush}" />
-            <Ellipse Width="136" Height="136">
-              <Ellipse.Fill>
-                <RadialGradientBrush Center="0.32,0.28" GradientOrigin="0.32,0.28" RadiusX="0.6" RadiusY="0.6">
-                  <GradientStop Offset="0" Color="#59FFFFFF" />
-                  <GradientStop Offset="1" Color="#00FFFFFF" />
-                </RadialGradientBrush>
-              </Ellipse.Fill>
-            </Ellipse>
-            <Ellipse Width="136" Height="136">
-              <Ellipse.Fill>
-                <RadialGradientBrush Center="0.75,0.85" GradientOrigin="0.75,0.85" RadiusX="0.7" RadiusY="0.7">
-                  <GradientStop Offset="0" Color="#000E0D18" />
-                  <GradientStop Offset="1" Color="#660E0D18" />
-                </RadialGradientBrush>
-              </Ellipse.Fill>
-            </Ellipse>
-          </Grid>
+          <Image
+              x:Name="HeroLogo"
+              Grid.Column="1"
+              Width="160"
+              Height="160"
+              VerticalAlignment="Center"
+              IsHitTestVisible="False"
+              Stretch="Uniform"
+              AutomationProperties.AccessibilityView="Raw" />
         </Grid>
       </Border>
 

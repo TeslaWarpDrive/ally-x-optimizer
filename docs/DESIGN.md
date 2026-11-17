@@ -12,14 +12,14 @@ mostly web tooling (shaders, React kits, galleries), so only ideas carry over to
 | From design-arsenal | In Ally Tuner |
 |---|---|
 | Aurora palette (ink, surface, raised, text, accent, teal, violet, pink) | Same hex values, as XAML colours and brushes |
-| Paper Shaders mesh orb with grain | A static XAML orb (linear gradient plus two radial highlights). No shader and no per-frame cost. |
+| Paper Shaders mesh orb with grain | The title bar and Home header use the Handheld Boost tile. The hero card edge keeps a static teal-to-pink gradient. No shader and no per-frame cost. |
 | Design Taste "60-30-10" and contrast checks | Ink 60 %, raised surfaces 30 %, accent and status colours 10 %. Text on ink is #E6EAFB and muted text is #A4A9C8, both well above 4.5:1. |
-| Hallmark's warnings about machine-made tells | No eyebrow labels over every card, and no single coloured word in a headline. The gradient is on the brand mark and the orb only. |
+| Hallmark's warnings about machine-made tells | No eyebrow labels over every card, and no single coloured word in a headline. The gradient is on the hero card edge only. |
 | 60fps.design / Motion Primitives (motion references) | Fluent theme transitions only, with a staggered card entrance on each page |
 
 ## Rules
 
-1. **Colour has a job.** Amber means dry-run or attention, teal means good or applied, and coral means failed. These status colours never decorate anything. The teal-to-pink gradient appears only on the brand mark (title bar) and the Home orb.
+1. **Colour has a job.** Amber means dry-run or attention, teal means good or applied, and coral means failed. These status colours never decorate anything. The teal-to-pink gradient appears only on the hero card edge. The title bar and the Home header use the Handheld Boost tile.
 2. **Safety stays loud.**
    - The dry-run banner is amber, sits on every page and has no close button.
    - Confirmation dialogs default to Cancel, show the from → to change, the safe range, any clamping and the undo path, and put the dry-run line in amber.
