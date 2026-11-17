@@ -93,6 +93,17 @@ internal static partial class NativeMethods
     [LibraryImport("powrprof.dll")]
     public static partial int PowerUnregisterFromEffectivePowerModeNotifications(nint registrationHandle);
 
+    /// <summary>
+    /// <see href="https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powergetuserconfiguredacpowermode"/>
+    /// Windows 11 and later. Read only: the matching Set function is deliberately not declared.
+    /// </summary>
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerGetUserConfiguredACPowerMode(out Guid powerModeGuid);
+
+    /// <summary><see href="https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powergetuserconfigureddcpowermode"/></summary>
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerGetUserConfiguredDCPowerMode(out Guid powerModeGuid);
+
     /// <summary><see href="https://learn.microsoft.com/windows/win32/api/dxgi/nf-dxgi-createdxgifactory1"/></summary>
     [LibraryImport("dxgi.dll")]
     public static partial int CreateDXGIFactory1(in Guid riid, out nint factory);

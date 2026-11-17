@@ -1,63 +1,71 @@
 <Application
     x:Class="AllyTuner.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedTheme="Dark">
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+        <!-- Aurora design system: palette, type, cards, buttons. See Themes/Aurora.xaml. -->
+        <ResourceDictionary Source="ms-appx:///Themes/Aurora.xaml" />
       </ResourceDictionary.MergedDictionaries>
+
+      <!-- Accent: Aurora periwinkle, so Fluent controls (accent buttons, sliders, toggles, focus) match. -->
+      <Color x:Key="SystemAccentColor">#FF8E9BFF</Color>
+      <Color x:Key="SystemAccentColorLight1">#FFA3AEFF</Color>
+      <Color x:Key="SystemAccentColorLight2">#FFB4BEFE</Color>
+      <Color x:Key="SystemAccentColorLight3">#FFCDD4FF</Color>
+      <Color x:Key="SystemAccentColorDark1">#FF7381F0</Color>
+      <Color x:Key="SystemAccentColorDark2">#FF5865D6</Color>
+      <Color x:Key="SystemAccentColorDark3">#FF3E49B0</Color>
 
       <!-- Sizing for a 7-inch 1080p touchscreen and controller use: big targets, readable text. -->
       <x:Double x:Key="NavigationViewItemOnLeftMinHeight">56</x:Double>
 
-      <Style x:Key="TouchButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-        <Setter Property="MinHeight" Value="56" />
-        <Setter Property="MinWidth" Value="180" />
-        <Setter Property="Padding" Value="24,12" />
-        <Setter Property="FontSize" Value="17" />
-        <Setter Property="CornerRadius" Value="8" />
-      </Style>
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- "Default" is the dark theme, which the app always uses. -->
+        <ResourceDictionary x:Key="Default">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="#FFFFC857" />
 
-      <Style x:Key="TouchAccentButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
-        <Setter Property="MinHeight" Value="56" />
-        <Setter Property="MinWidth" Value="180" />
-        <Setter Property="Padding" Value="24,12" />
-        <Setter Property="FontSize" Value="17" />
-        <Setter Property="CornerRadius" Value="8" />
-      </Style>
+          <!-- The window draws the Aurora background; the menu and content sit on it. -->
+          <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#B3100F1C" />
+          <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#B3100F1C" />
+          <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+          <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
 
-      <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="Padding" Value="20" />
-      </Style>
+          <!-- Selected menu item: a periwinkle pill. -->
+          <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#FFB4BEFE" />
+          <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#2EB4BEFE" />
+          <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#3DB4BEFE" />
+          <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#14FFFFFF" />
 
-      <Style x:Key="PageTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
-        <Setter Property="Margin" Value="0,0,0,4" />
-      </Style>
+          <!-- Focus ring for the controller: bright periwinkle on ink. -->
+          <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="#FFB4BEFE" />
+          <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="#FF0E0D18" />
 
-      <Style x:Key="BodyLargeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
-        <Setter Property="FontSize" Value="17" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-      </Style>
+          <!-- Plain buttons: raised ink with a soft edge. -->
+          <SolidColorBrush x:Key="ButtonBackground" Color="#FF232240" />
+          <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF2C2B4E" />
+          <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF1C1B33" />
+          <SolidColorBrush x:Key="ButtonBorderBrush" Color="#33FFFFFF" />
+          <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#4DFFFFFF" />
+          <SolidColorBrush x:Key="ButtonForeground" Color="#FFE6EAFB" />
+          <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
 
-      <Style x:Key="CardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
-        <Setter Property="FontSize" Value="15" />
-        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-      </Style>
-
-      <Style x:Key="CardValueTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
-        <Setter Property="TextWrapping" Value="Wrap" />
-      </Style>
-
-      <Style x:Key="CardDetailTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
-        <Setter Property="FontSize" Value="15" />
-        <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
-      </Style>
+          <!-- Dialogs: the same ink surfaces as the cards. -->
+          <SolidColorBrush x:Key="ContentDialogBackground" Color="#FF17162A" />
+          <SolidColorBrush x:Key="ContentDialogBorderBrush" Color="#4DB4BEFE" />
+          <SolidColorBrush x:Key="ContentDialogTopOverlay" Color="#FF1B1A30" />
+          <SolidColorBrush x:Key="ContentDialogSmokeFill" Color="#B3050409" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="#FF8A5300" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush x:Key="DryRunForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

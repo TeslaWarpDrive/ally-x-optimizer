@@ -1,6 +1,8 @@
 using AllyTuner.Core.Input;
 using AllyTuner.Core.Logging;
+using AllyTuner.Core.Safety;
 using AllyTuner.Pages;
+using AllyTuner.Safety;
 using AllyTuner.Services;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -8,12 +10,18 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.System;
+using Windows.UI;
+using Windows.UI.ViewManagement;
 
 namespace AllyTuner;
 
 public sealed partial class MainWindow : Window
 {
     private readonly GamepadService _gamepad;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _overrideTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _powerTimer;
+    private Core.Detection.PowerSource? _lastPowerSource;
+    private bool _autoApplying;
 
     // Shared with GamepadService so one physical press never moves focus twice (see InputArbiter).
     private readonly InputArbiter _inputArbiter = new();
@@ -27,6 +35,12 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // Aurora title bar: content runs under it, caption buttons stay (minimise, close) in Aurora colours.
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        StyleCaptionButtons();
+        TitleVersionText.Text = App.Services.AppVersion;
+
         // Fill the Ally's screen. (Maximized, not full-screen, so the taskbar and Game Bar still work.)
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -35,7 +49,28 @@ public sealed partial class MainWindow : Window
 
         _gamepad = new GamepadService(DispatcherQueue, () => Content?.XamlRoot, OnGamepadCommand, _inputArbiter, App.Services.Log);
         Activated += (_, e) => _gamepad.IsWindowActive = e.WindowActivationState != WindowActivationState.Deactivated;
-        Closed += (_, _) => _gamepad.Stop();
+        App.Services.SettingsChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateDryRunBanner);
+        RootGrid.Loaded += (_, _) => UpdateDryRunBanner();
+
+        // Override check: every 30 s while the app runs. Re-applying goes through the safety service, so it
+        // obeys dry-run like every other change.
+        _overrideTimer = DispatcherQueue.CreateTimer();
+        _overrideTimer.Interval = OverrideWatcher.Interval;
+        _overrideTimer.Tick += async (_, _) => await RunOverrideCheckAsync();
+        _overrideTimer.Start();
+
+        // Plugged-in profile: checks the power source every 5 s and applies the profile on the change to AC, if on.
+        _powerTimer = DispatcherQueue.CreateTimer();
+        _powerTimer.Interval = TimeSpan.FromSeconds(5);
+        _powerTimer.Tick += async (_, _) => await CheckPowerSourceAsync();
+        _powerTimer.Start();
+
+        Closed += (_, _) =>
+        {
+            _overrideTimer.Stop();
+            _powerTimer.Stop();
+            _gamepad.Stop();
+        };
     }
 
     private void Nav_Loaded(object sender, RoutedEventArgs e)
@@ -62,10 +97,157 @@ public sealed partial class MainWindow : Window
             {
                 Navigate(typeof(ProbePage), null);
             }
+            else if (tag == "safety")
+            {
+                Navigate(typeof(SafetyPage), null);
+            }
+            else if (tag == "windows")
+            {
+                Navigate(typeof(WindowsTweaksPage), null);
+            }
+            else if (tag == "power")
+            {
+                Navigate(typeof(PowerPage), null);
+            }
+            else if (tag == "graphics")
+            {
+                Navigate(typeof(GraphicsPage), null);
+            }
+            else if (tag == "battery")
+            {
+                Navigate(typeof(BatteryPage), null);
+            }
+            else if (tag == "profiles")
+            {
+                Navigate(typeof(ProfilesPage), null);
+            }
             else if (Sections.ByTag(tag) is { } section)
             {
                 Navigate(typeof(PlaceholderPage), section);
             }
+        }
+    }
+
+    private async void Nav_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer == ResetNavItem && Content?.XamlRoot is { } root)
+        {
+            try
+            {
+                if ((await SafetyDialogs.ResetToSafeDefaultsAsync(root)).Count > 0)
+                {
+                    ShowSection("safety");
+                }
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                App.Services.Log.Error("Reset to Safe Defaults failed.", ex);
+            }
+        }
+    }
+
+    private void OpenChangeLog_Click(object sender, RoutedEventArgs e) => ShowSection("safety");
+
+    private async Task CheckPowerSourceAsync()
+    {
+        if (_autoApplying)
+        {
+            return;
+        }
+
+        _autoApplying = true;
+        try
+        {
+            var services = App.Services;
+            var now = await Task.Run(services.CurrentPowerSource);
+            var previous = _lastPowerSource;
+            _lastPowerSource = now;
+            if (previous is null || Core.Power.AutoApply.OnPowerChange(previous.Value, now, services.Settings) is not { } profile)
+            {
+                return;
+            }
+
+            var settings = services.Settings;
+            var records = await Task.Run(async () =>
+            {
+                var plans = Core.Power.PowerProfiles.Plan(services.Changes, profile);
+                return await services.Changes.ExecuteAsync(ConfirmationText.ConfirmAutoApply(plans, settings));
+            });
+            services.Log.Info($"Plugged in: applied profile {profile.Name} automatically ({records.Count} step(s)).");
+            AutoApplyBanner.Message = services.Gate.EverythingIsDryRun
+                ? $"Applied {profile.Name} automatically as a dry-run: {records.Count} step(s) recorded in the change log, nothing changed."
+                : $"Applied {profile.Name} automatically: {records.Count} step(s), recorded in the change log.";
+            AutoApplyBanner.IsOpen = true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Warn("Applying the plugged-in profile failed.", ex);
+        }
+        finally
+        {
+            _autoApplying = false;
+        }
+    }
+
+    private async Task RunOverrideCheckAsync()
+    {
+        try
+        {
+            var result = await Task.Run(() => App.Services.OverrideWatcher.CheckAsync());
+            var warnings = result.Warnings;
+            if (warnings.Count > 0)
+            {
+                OverrideBanner.Message = string.Join(" ", warnings.Select(w => w.Message));
+                OverrideBanner.IsOpen = true;
+            }
+            else if (result.Responses.Count == 0)
+            {
+                OverrideBanner.IsOpen = false;
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Warn("The override check failed.", ex);
+        }
+    }
+
+    /// <summary>The banner shows whenever no change can be live. In this build that is always.</summary>
+    private void UpdateDryRunBanner()
+    {
+        var dryRun = App.Services.Gate.EverythingIsDryRun;
+        DryRunBanner.Visibility = dryRun ? Visibility.Visible : Visibility.Collapsed;
+
+        // The only looping motion in the app, and only if Windows' "Animation effects" is on.
+        if (RootGrid.Resources["DryRunPulse"] is Storyboard pulse)
+        {
+            if (dryRun && new UISettings().AnimationsEnabled)
+            {
+                pulse.Begin();
+            }
+            else
+            {
+                pulse.Stop();
+            }
+        }
+    }
+
+    private void StyleCaptionButtons()
+    {
+        try
+        {
+            var bar = AppWindow.TitleBar;
+            bar.ButtonBackgroundColor = Microsoft.UI.Colors.Transparent;
+            bar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+            bar.ButtonForegroundColor = Color.FromArgb(0xFF, 0xE6, 0xEA, 0xFB);
+            bar.ButtonInactiveForegroundColor = Color.FromArgb(0xFF, 0xA4, 0xA9, 0xC8);
+            bar.ButtonHoverBackgroundColor = Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF);
+            bar.ButtonHoverForegroundColor = Microsoft.UI.Colors.White;
+            bar.ButtonPressedBackgroundColor = Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Cosmetic only.
+            App.Services.Log.Warn("Could not style the title bar buttons.", ex);
         }
     }
 
@@ -141,9 +323,16 @@ public sealed partial class MainWindow : Window
     {
         switch (command)
         {
+            case NavCommand.Back when SafetyDialogs.Current is { } dialog:
+                // B on a confirmation means Cancel, never "go to the menu behind it".
+                dialog.Hide();
+                break;
             case NavCommand.Back:
                 // B always returns focus to the menu, so the user can never get "lost" in a page.
                 FocusSelectedNavItem();
+                break;
+            case NavCommand.PreviousSection or NavCommand.NextSection or NavCommand.Menu when SafetyDialogs.Current is not null:
+                // Bumpers and Menu do nothing while a confirmation is open.
                 break;
             case NavCommand.PreviousSection:
                 MoveSection(-1);

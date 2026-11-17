@@ -19,6 +19,11 @@ public partial class ReadOnlyGuardTests
         @"\bRegSetValue[A-Za-z]*\s*\(",        // registry writes
         @"\.SetValue\s*\(",                    // Microsoft.Win32.RegistryKey.SetValue
         @"InvokeMethod\s*\(",                  // WMI method calls (DEVS via AsusAtkWmi_WMNB)
+        @"PowerSetUserConfigured[A-Za-z]*PowerMode\s*\(", // power-mode writes (Phase 3 only reads them)
+        @"\.DeleteValue\s*\(",                // registry deletes
+        @"\.CreateSubKey\s*\(",               // registry key creation (opens for write)
+        @"\.OpenSubKey\s*\([^)]*,\s*(writable:\s*)?(true|RegistryKeyPermissionCheck\.ReadWriteSubTree)", // writable registry opens
+        @"ProcessStartInfo\s*\([^)]*dism",       // DISM feature changes
     ];
 
     [Fact]

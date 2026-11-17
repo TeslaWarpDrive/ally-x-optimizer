@@ -1,3 +1,6 @@
+using AllyTuner.Core.Power;
+using AllyTuner.Core.Safety;
+
 namespace AllyTuner.Core.Settings;
 
 /// <summary>User settings persisted to settings.json.</summary>
@@ -9,9 +12,37 @@ public sealed record AppSettings
 
     /// <summary>
     /// When true, no hardware or system write is ever performed: the app logs what it would have
-    /// done instead. Defaults to ON. Phase 0 has no write controls at all.
+    /// done instead. Defaults to ON. Builds without live writes ignore false (see <see cref="WriteGate"/>).
     /// </summary>
     public bool DryRunMode { get; init; } = true;
 
+    /// <summary>
+    /// Settings released for live writes, one at a time, after their dry-run was watched on the Ally.
+    /// Empty by default. Only matters when dry-run is off and the build allows live writes.
+    /// </summary>
+    public IReadOnlyList<string> LiveSettingIds { get; init; } = [];
+
+    /// <summary>What to do when another app (Armoury Crate, AMD Software) changes a setting back.</summary>
+    public OverridePolicy OverridePolicy { get; init; } = OverridePolicy.Warn;
+
+    /// <summary>Power profiles the person saved or imported. The built-in ones are not stored.</summary>
+    public IReadOnlyList<PowerProfile> Profiles { get; init; } = [];
+
+    /// <summary>The profile to apply when the Ally is plugged in, if <see cref="AutoApplyOnAc"/> is on.</summary>
+    public string? AcProfileId { get; init; }
+
+    /// <summary>Apply <see cref="AcProfileId"/> automatically on plugging in. Off by default; turning it on asks first.</summary>
+    public bool AutoApplyOnAc { get; init; }
+
+    /// <summary>Custom fan curves by fan-curve setting ID (asus.fan-curve-cpu / -gpu).</summary>
+    public IReadOnlyDictionary<string, StoredFanCurve> CustomFanCurves { get; init; } = new Dictionary<string, StoredFanCurve>();
+
     public static AppSettings Defaults { get; } = new();
+
+    /// <summary>One line for the log, for example "dry-run on; live: none; overrides: Warn".</summary>
+    public string Describe() =>
+        $"dry-run {(DryRunMode ? "on" : "off")}; live: {(LiveSettingIds.Count == 0 ? "none" : string.Join(", ", LiveSettingIds))}; overrides: {OverridePolicy}"
+        + (Profiles.Count > 0 ? $"; profiles: {Profiles.Count}" : string.Empty)
+        + (AutoApplyOnAc ? $"; auto-apply on AC: {AcProfileId}" : string.Empty)
+        + (CustomFanCurves.Count > 0 ? $"; custom fan curves: {string.Join(", ", CustomFanCurves.Keys)}" : string.Empty);
 }
