@@ -9,5 +9,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AllyTuner.Core.Tests/AllyTuner.Core.Tests.csproj" />
+    <Project Path="tests/AllyTuner.Platform.Windows.Tests/AllyTuner.Platform.Windows.Tests.csproj" />
   </Folder>
 </Solution>

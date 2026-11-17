@@ -4,7 +4,7 @@
     with the run number and commit (see .github/workflows/ci.yml).
   -->
   <PropertyGroup>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.2.0</VersionPrefix>
     <Product>Ally Tuner</Product>
     <Company>Ally Tuner</Company>
     <Copyright>Ally Tuner contributors</Copyright>

@@ -27,8 +27,9 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Windows 11 only.
-MinVersion=10.0.22000
+; Windows 11 22H2 (build 22621) or later: must match SupportedOSPlatformVersion in src/AllyTuner.App/AllyTuner.App.csproj
+; (a unit test checks they agree).
+MinVersion=10.0.22621
 OutputDir={#OutputDir}
 OutputBaseFilename=AllyTuner-Setup-{#AppVersion}
 Compression=lzma2/max

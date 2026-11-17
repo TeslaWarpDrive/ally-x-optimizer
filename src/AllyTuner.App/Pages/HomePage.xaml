@@ -59,6 +59,64 @@
         </Border>
       </Grid>
 
+      <StackPanel Spacing="4">
+        <TextBlock Text="System status" Style="{StaticResource CardValueTextStyle}" />
+        <TextBlock x:Name="StatusUpdatedText" Style="{StaticResource CardDetailTextStyle}" Text="Checking…" />
+      </StackPanel>
+
+      <Grid ColumnSpacing="16" RowSpacing="16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="ASUS control interface" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="AcpiValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="AcpiDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Armoury Crate" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="ArmouryValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="ArmouryDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Xbox Full Screen Experience" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="FseValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="FseDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardStyle}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Power" Style="{StaticResource CardLabelTextStyle}" />
+            <TextBlock x:Name="PowerValue" Text="…" Style="{StaticResource CardValueTextStyle}" />
+            <TextBlock x:Name="PowerDetail" Style="{StaticResource CardDetailTextStyle}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Border Style="{StaticResource CardStyle}">
+        <StackPanel Spacing="12">
+          <TextBlock Text="Hardware probe" Style="{StaticResource CardValueTextStyle}" />
+          <TextBlock
+              Style="{StaticResource CardDetailTextStyle}"
+              Text="Reads how this Ally's ASUS interfaces respond (power limits, fans, VRAM, battery, CPU cores) and saves a report. It only reads." />
+          <Button Content="Open hardware probe" Style="{StaticResource TouchAccentButtonStyle}" Click="OpenProbeButton_Click" />
+        </StackPanel>
+      </Border>
+
       <Border Style="{StaticResource CardStyle}">
         <StackPanel Spacing="12">
           <TextBlock Text="Recommended Plugged-In Setup" Style="{StaticResource CardValueTextStyle}" />

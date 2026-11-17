@@ -5,7 +5,6 @@ namespace AllyTuner;
 
 public partial class App : Application
 {
-    private Window? _window;
 
     public App()
     {
@@ -24,10 +23,13 @@ public partial class App : Application
     /// <summary>App-wide services, created once at startup.</summary>
     public static AppServices Services { get; private set; } = null!;
 
+    /// <summary>The one window, so pages can ask it to switch sections.</summary>
+    internal static MainWindow? Shell { get; private set; }
+
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Closed += (_, _) => Services.Log.Info("Ally Tuner closed.");
-        _window.Activate();
+        Shell = new MainWindow();
+        Shell.Closed += (_, _) => Services.Log.Info("Ally Tuner closed.");
+        Shell.Activate();
     }
 }
