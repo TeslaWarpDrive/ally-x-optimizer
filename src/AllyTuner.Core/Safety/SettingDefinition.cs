@@ -110,6 +110,13 @@ public sealed record SettingDefinition
     /// <summary>A caution shown in the confirmation, for example the security cost of turning a protection off.</summary>
     public string Warning { get; init; } = string.Empty;
 
+    /// <summary>The values the <see cref="Warning"/> is about, or null when it applies to every change.</summary>
+    public IReadOnlyList<int>? WarningForValues { get; init; }
+
+    /// <summary>The warning for a change to <paramref name="value"/>, or an empty string when it does not apply.</summary>
+    public string WarningFor(int? value) =>
+        WarningForValues is null || (value is { } v && WarningForValues.Contains(v)) ? Warning : string.Empty;
+
     /// <summary>The value the brief recommends for an always-plugged-in Ally, or null when there is no recommendation.</summary>
     public int? Recommended { get; init; }
 

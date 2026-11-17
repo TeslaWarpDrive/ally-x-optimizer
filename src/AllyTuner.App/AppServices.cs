@@ -1,7 +1,9 @@
 using System.Reflection;
+using AllyTuner.Core.Amd;
 using AllyTuner.Core.Diagnostics;
 using AllyTuner.Core.Detection;
 using AllyTuner.Core.Logging;
+using AllyTuner.Core.Power;
 using AllyTuner.Core.Safety;
 using AllyTuner.Core.Settings;
 using AllyTuner.Core.Tweaks;
@@ -33,15 +35,27 @@ public sealed class AppServices
         var factsReader = new WindowsTweakFactsReader(log);
         TweakReader = new TweakSettingReader(factsReader.Read, log);
 
+        // The ASUS and power controls (Phase 4) are read with DSTS reads only, and only on a supported RC73XA.
+        var deviceReader = new DeviceControlFactsReader(log, IsSupportedDevice);
+        ControlReader = new PowerControlReader(deviceReader.Read, () => Settings, CurrentPerformanceMode, log);
+
+        // AMD features (Phase 5): read through ADLX only on an explicit action: "Read AMD settings" or
+        // "Apply Recommended Setup" (Phase 6).
+        AmdReader = new AmdSettingReader(() => AdlxReader.Read(log), log);
+        Router = new SettingRouter(
+            (PowerControlReader.Owns, ControlReader),
+            (AmdSettingReader.Owns, AmdReader),
+            (s => s.Group is WindowsTweaks.Group or StartupApps.Group, TweakReader));
+
         // The only writer in this build cannot touch hardware; the gate keeps every change a dry-run anyway.
         Changes = new SafeChangeService(
-            [.. TunableSettings.All, .. WindowsTweaks.All], Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource,
-            reader: TweakReader, describer: TweakReader, resolve: StartupApps.Resolve);
+            [.. PowerControls.All, .. AmdFeatures.All, .. WindowsTweaks.All], Journal, Gate, NoHardwareWriter.Instance, log, CurrentPowerSource,
+            reader: Router, describer: Router, resolve: StartupApps.Resolve);
         Overrides = new OverrideMonitor(Changes);
 
         // Checks read-back values every 30 s (MainWindow schedules it). The Windows tweaks can be read back; nothing is
         // applied live in this build, so it has nothing to compare yet.
-        OverrideWatcher = new OverrideWatcher(Overrides, Changes, TweakReader, () => Settings.OverridePolicy, PossibleOverrideCauses, log);
+        OverrideWatcher = new OverrideWatcher(Overrides, Changes, Router, () => Settings.OverridePolicy, PossibleOverrideCauses, log);
         AppVersion = typeof(AppServices).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
     }
@@ -67,6 +81,15 @@ public sealed class AppServices
 
     /// <summary>Reads the Windows tweaks and startup apps (cached for a few seconds).</summary>
     public TweakSettingReader TweakReader { get; }
+
+    /// <summary>Reads the ASUS and power controls (VRAM, cores, CPU Boost, factory fan curves; cached briefly).</summary>
+    public PowerControlReader ControlReader { get; }
+
+    /// <summary>AMD graphics features through ADLX (read only on request).</summary>
+    public AmdSettingReader AmdReader { get; }
+
+    /// <summary>Sends each setting to the reader that owns it.</summary>
+    public SettingRouter Router { get; }
 
     /// <summary>The periodic override check (warn or re-apply, per the Settings choice).</summary>
     public OverrideWatcher OverrideWatcher { get; }
@@ -116,7 +139,19 @@ public sealed class AppServices
         }
     }
 
-    private PowerSource CurrentPowerSource()
+    /// <summary>
+    /// The performance mode the firmware-fan-curve step re-sends: in dry-run, the last mode set or simulated (so a
+    /// profile's fan step follows the mode that profile just chose); with live writes, only what was really applied.
+    /// </summary>
+    public int? CurrentPerformanceMode() => Gate.EverythingIsDryRun
+        ? Journal.LatestDone(TunableSettings.PerformanceModeId)?.Value
+        : Journal.LastApplied(TunableSettings.PerformanceModeId);
+
+    /// <summary>True once the device is known to be an RC73XA. Until the snapshot is read, ASUS controls stay unavailable.</summary>
+    public bool IsSupportedDevice() =>
+        _snapshot.IsValueCreated && _snapshot.Value.IsCompletedSuccessfully && _snapshot.Value.Result.Classification.IsSupported;
+
+    public PowerSource CurrentPowerSource()
     {
         try
         {
@@ -138,6 +173,8 @@ public sealed class AppServices
         var log = new FileLog(Path.Combine(dataDirectory, "logs"));
         var settingsStore = new SettingsStore(Path.Combine(dataDirectory, "settings.json"), log);
         var settings = settingsStore.Load();
-        return new AppServices(dataDirectory, log, settingsStore, settings, new WmiSystemInfoReader(log));
+        var services = new AppServices(dataDirectory, log, settingsStore, settings, new WmiSystemInfoReader(log));
+        _ = services.GetSnapshotAsync(); // start identifying the device now; the ASUS controls wait for it
+        return services;
     }
 }

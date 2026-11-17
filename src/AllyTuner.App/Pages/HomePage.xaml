@@ -177,13 +177,16 @@
         </StackPanel>
       </Border>
 
-      <Border Style="{StaticResource CardStyle}">
+      <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+
+      <Border Style="{StaticResource HeroCardStyle}">
         <StackPanel Spacing="12">
           <TextBlock Text="Recommended Plugged-In Setup" Style="{StaticResource CardValueTextStyle}" />
           <TextBlock
               Style="{StaticResource CardDetailTextStyle}"
-              Text="One tap to apply high sustained power, 10 GB VRAM, Battery Care, an aggressive fan curve and Windows gaming settings, with a summary to confirm first. Coming in Phase 6." />
-          <Button Content="Apply Recommended Setup" Style="{StaticResource TouchAccentButtonStyle}" IsEnabled="False" />
+              Text="One confirmation for the brief's plugged-in setup: Performance Max (Turbo, 35 W sustained, Turbo fan curve), Battery Care at 80 %, 10 GB VRAM, Memory integrity and VM Platform off, Game Mode, GPU scheduling, windowed-game optimizations, best-performance power mode and Radeon Anti-Lag. CPU Boost stays on. Plugged in only. Steps already in place are skipped. Every step is logged; each can be undone from the change log except the three power limits the first time (the device cannot report them, so there is no earlier value; Reset to Safe Defaults brings back the firmware's own)." />
+          <Button x:Name="RecommendedButton" Content="Apply Recommended Setup…" Style="{StaticResource TouchAccentButtonStyle}" Click="RecommendedButton_Click" />
+          <TextBlock x:Name="RecommendedStatus" Style="{StaticResource CardDetailTextStyle}" />
         </StackPanel>
       </Border>
 

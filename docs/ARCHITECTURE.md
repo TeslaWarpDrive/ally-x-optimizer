@@ -95,6 +95,43 @@ integrity, a missing feature), `PlanRecommended`, `PlanRestoreOriginals` and one
 on the Ally confirms them. `RestartTracker` lists live changes since boot that wait for a restart.
 Sources and rules: RESEARCH.md §14.
 
+## ASUS and power controls (Phase 4)
+
+```
+Core/Power/PowerControls       fan curves, CPU Boost (AC/DC), Battery Care, VRAM and cores as SettingDefinitions,
+                               on top of TunableSettings (mode, SPL/sPPT/fPPT); PowerControls.All is profile order
+Core/Power/DeviceControlFacts  decodes DSTS reads (VRAM, cores, factory fan curves, fan floors) + CPU Boost values
+Core/Power/PowerControlReader  ISettingReader + IWriteDescriber: values, availability (ASUS only on an RC73XA, VRAM
+                               list and core range must equal the reviewed Ally's), per-value refusal (unsafe fan
+                               curves) and the exact DEVS / power-API call each change would make
+Core/Power/FanCurveRules       custom curves never below any factory curve or the fan floor; the editor's start
+Core/Power/PowerProfiles       built-in Performance Max / Balanced / Silent, saved profiles, JSON, apply order, AutoApply
+Core/Safety/SettingRouter      one reader for the safety service: power controls vs Windows tweaks
+Platform/DeviceControlFactsReader  DSTS reads (only on a supported device) + PowerReader.ReadScheme
+App/Pages/Power|Graphics|Battery|ProfilesPage  cards built from the definitions; fan-curve and profile editors
+```
+
+Auto-apply: MainWindow checks the power source every 5 s and, on the change to AC with auto-apply on, applies the
+plugged-in profile through `ConfirmationText.ConfirmAutoApply` (allowed only while the person has it turned on).
+Sources and limits: RESEARCH.md §15.
+
+## AMD graphics features (Phase 5)
+
+```
+Core/Amd/AmdFeatures        Anti-Lag, Radeon Super Resolution, Boost, Chill as SettingDefinitions; Interpret,
+                            conflict refusals, ADLX call descriptions; AmdSettingReader (reads only on request)
+Platform/AdlxReader         ADLX C vtable interop, IsSupported / IsEnabled only; AdlxSlots lists every slot used
+App/Pages/GraphicsPage      "Read AMD settings", one card per feature, guidance for HYPR-RX, FSR and Auto SR
+```
+
+Sources: RESEARCH.md §16.
+
+## Recommended Plugged-In Setup (Phase 6)
+
+`Core/Power/RecommendedSetup` lists the brief's steps as (setting, value) pairs and plans them through
+`SafeChangeService` (skipping what is already in place, restart steps last, CPU Boost only if it is off). Home's
+*Apply Recommended Setup…* reads everything fresh, including AMD, and shows one confirmation. RESEARCH.md §17.
+
 ## Controller navigation
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".

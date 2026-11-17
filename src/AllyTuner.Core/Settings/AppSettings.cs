@@ -1,3 +1,4 @@
+using AllyTuner.Core.Power;
 using AllyTuner.Core.Safety;
 
 namespace AllyTuner.Core.Settings;
@@ -24,9 +25,24 @@ public sealed record AppSettings
     /// <summary>What to do when another app (Armoury Crate, AMD Software) changes a setting back.</summary>
     public OverridePolicy OverridePolicy { get; init; } = OverridePolicy.Warn;
 
+    /// <summary>Power profiles the person saved or imported. The built-in ones are not stored.</summary>
+    public IReadOnlyList<PowerProfile> Profiles { get; init; } = [];
+
+    /// <summary>The profile to apply when the Ally is plugged in, if <see cref="AutoApplyOnAc"/> is on.</summary>
+    public string? AcProfileId { get; init; }
+
+    /// <summary>Apply <see cref="AcProfileId"/> automatically on plugging in. Off by default; turning it on asks first.</summary>
+    public bool AutoApplyOnAc { get; init; }
+
+    /// <summary>Custom fan curves by fan-curve setting ID (asus.fan-curve-cpu / -gpu).</summary>
+    public IReadOnlyDictionary<string, StoredFanCurve> CustomFanCurves { get; init; } = new Dictionary<string, StoredFanCurve>();
+
     public static AppSettings Defaults { get; } = new();
 
     /// <summary>One line for the log, for example "dry-run on; live: none; overrides: Warn".</summary>
     public string Describe() =>
-        $"dry-run {(DryRunMode ? "on" : "off")}; live: {(LiveSettingIds.Count == 0 ? "none" : string.Join(", ", LiveSettingIds))}; overrides: {OverridePolicy}";
+        $"dry-run {(DryRunMode ? "on" : "off")}; live: {(LiveSettingIds.Count == 0 ? "none" : string.Join(", ", LiveSettingIds))}; overrides: {OverridePolicy}"
+        + (Profiles.Count > 0 ? $"; profiles: {Profiles.Count}" : string.Empty)
+        + (AutoApplyOnAc ? $"; auto-apply on AC: {AcProfileId}" : string.Empty)
+        + (CustomFanCurves.Count > 0 ? $"; custom fan curves: {string.Join(", ", CustomFanCurves.Keys)}" : string.Empty);
 }

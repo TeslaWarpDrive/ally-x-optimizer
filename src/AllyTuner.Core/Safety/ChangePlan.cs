@@ -62,6 +62,9 @@ public enum ConfirmedBy
 
     /// <summary>The override policy "re-apply" re-applied a value the person confirmed earlier.</summary>
     ReApplyPolicy,
+
+    /// <summary>The AC profile was applied on plugging in, which the person turned on (and confirmed) in Settings.</summary>
+    AutoApply,
 }
 
 /// <summary>
@@ -136,9 +139,9 @@ public sealed record ConfirmationText(
             lines.Add("A wrong value here can make the device unstable or hot.");
         }
 
-        if (!string.IsNullOrWhiteSpace(setting.Warning))
+        if (setting.WarningFor(plan.Guard.Value) is { Length: > 0 } warning)
         {
-            lines.Add(setting.Warning);
+            lines.Add(warning);
         }
 
         lines.Add(DryRunLine(plan.Gate));
@@ -183,7 +186,15 @@ public sealed record ConfirmationText(
         var dryRun = plans.Count == 0 || plans.All(p => p.Gate.IsDryRun);
 
         var lines = new List<string>();
-        lines.AddRange(plans.Select(p => p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}"));
+        foreach (var p in plans)
+        {
+            lines.Add(p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}");
+            if (p.CanProceed && p.Guard.Outcome == GuardOutcome.Clamped)
+            {
+                lines.Add(p.Guard.Note);
+            }
+        }
+
         lines.AddRange(extraLines);
 
         var restart = plans.Where(p => p.CanProceed && p.Setting.Risk == ChangeRisk.NeedsRestart).Select(p => p.Setting.Name).ToList();
@@ -192,7 +203,7 @@ public sealed record ConfirmationText(
             lines.Add($"Needs a restart to take effect: {string.Join(", ", restart)}.");
         }
 
-        lines.AddRange(plans.Where(p => p.CanProceed && !string.IsNullOrWhiteSpace(p.Setting.Warning)).Select(p => p.Setting.Warning).Distinct());
+        lines.AddRange(plans.Where(p => p.CanProceed).Select(p => p.Setting.WarningFor(p.Guard.Value)).Where(w => w.Length > 0).Distinct());
 
         if (plans.Count == 0)
         {
@@ -227,6 +238,22 @@ public sealed record ConfirmationText(
 
     /// <summary>Call only after the person agreed to <see cref="ForReset"/>. Refused plans are left out.</summary>
     public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans) => ConfirmBatch(plans);
+
+    /// <summary>
+    /// Confirms an automatic profile apply on plugging in. Allowed only while the person has auto-apply turned on
+    /// (they confirmed it when turning it on); refused plans are left out, and the gate still decides dry-run.
+    /// </summary>
+    public static ConfirmedChange ConfirmAutoApply(IReadOnlyList<ChangePlan> plans, Settings.AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (!settings.AutoApplyOnAc || settings.AcProfileId is null)
+        {
+            throw new InvalidOperationException("Auto-apply is off, so nothing may be applied without a confirmation.");
+        }
+
+        return new ConfirmedChange(plans.Where(p => p.CanProceed).ToList(), ConfirmedBy.AutoApply);
+    }
 
     /// <summary>Call only after the person agreed to <see cref="ForBatch"/>. Refused plans are left out.</summary>
     public static ConfirmedChange ConfirmBatch(IReadOnlyList<ChangePlan> plans)

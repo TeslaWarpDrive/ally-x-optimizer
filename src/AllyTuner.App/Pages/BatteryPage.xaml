@@ -1,0 +1,27 @@
+<Page
+    x:Class="AllyTuner.Pages.BatteryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel x:Name="Body" Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Battery" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{StaticResource AuroraMutedBrush}"
+            Text="Battery Care keeps a battery that stays plugged in from sitting at 100 %." />
+      </StackPanel>
+
+      <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+
+      <!-- Cards are built in code from the setting definitions, so wording and limits come from Core. -->
+      <StackPanel x:Name="Cards" Spacing="16" />
+    </StackPanel>
+  </ScrollViewer>
+</Page>

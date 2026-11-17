@@ -92,3 +92,32 @@ On-device testing waits until the whole app is finished. Then, for this part:
 3. On one startup app, press *Turn off…* and simulate it. The log shows the StartupApproved write. Task Manager > Startup apps still shows it enabled.
 4. **Device check for the community-documented formats.** In Windows Settings, toggle *Hardware-accelerated GPU scheduling*, then restart. Toggle *Optimizations for windowed games*. In Task Manager, disable and re-enable one startup app. After each, run the Probe: the *Windows tweaks (read-only)* section must show the matching raw value (HwSchMode 2/1, `SwapEffectUpgradeEnable=1/0`, StartupApproved first byte 03/02). Send the reports; only then can those three stay eligible for live writes.
 
+## Phase 4 (ASUS controls), for the final Ally test
+
+Everything here is a dry-run. Nothing on the device should change, and Armoury Crate should show no change.
+
+1. **Power**: *Apply Performance Max…* lists, in order, mode → Turbo, both fans → Turbo curve, SPL 35 W, sPPT 45 W, fPPT 55 W and CPU Boost Aggressive. The last line says the power limits cannot be undone (no earlier value). Simulate it. The change log shows one "Would send DEVS …" line per step, and the fan steps list the 16 curve bytes.
+2. Move SPL to 7 W and *Apply power limits…*: it is accepted (7–35 W). Unplug and try sPPT 13 W: accepted on battery; plugged in it is clamped to 14 W.
+3. *Edit custom curve…* (CPU): the sliders cannot go below the firmware's values. Save, then *Custom curve…*: the confirmation shows your curve.
+4. **CPU cores**: *Apply core layout…* with 2 P + 4 E. The dialog warns about a restart and lower performance. The log shows `DEVS 0x001200D2 = 0x0402`.
+5. **Graphics**: *10 GB…* shows 8 GB → 10 GB with a restart warning. The log shows `DEVS 0x000600C4 = 10240`.
+6. **Battery**: *Turn on Battery Care (80 %)…* logs `DEVS 0x00120057 = 80`.
+7. **Profiles**: make a new profile, set it as the plugged-in profile and turn on auto-apply (it asks first). Unplug, then plug in: within about 5 s a banner says it was applied as a dry-run, and the change log shows the steps marked as applied automatically.
+8. Watched first live writes come later, one control at a time, in a separate build.
+
+## Phase 5 (AMD features), for the final Ally test
+
+1. **Graphics**: press *Read AMD settings*. This is the first time Ally Tuner calls AMD's driver interface. If the app closes here, send the app log; that points at the ADLX interop.
+2. The four cards (Anti-Lag, Radeon Super Resolution, Boost, Chill) show *Now:* values that match AMD Software: Adrenalin Edition's Gaming > Graphics tab.
+3. If Chill is on, *On…* for Anti-Lag is refused and the dialog asks to turn Chill off first.
+4. Simulate Anti-Lag on. The log shows `Would call IADLX3DAntiLag::SetEnabled(true)`, and AMD Software still shows it off.
+5. The guidance card explains HYPR-RX, FSR and Auto SR.
+
+## Phase 6 (Recommended Plugged-In Setup), for the final Ally test
+
+1. Plugged in, on **Home** press *Apply Recommended Setup…*. The dialog lists only what differs on this Ally. Restart steps (Memory integrity, VM Platform, VRAM, and GPU scheduling if it changes) come last and are named in the restart line. The HYPR-RX and CPU Boost notes are shown, and Cancel is selected first.
+2. Simulate it: Home says how many steps were simulated, the change log has one entry per step, and nothing changes in Windows Settings, Armoury Crate or AMD Software.
+3. Turn Radeon Chill on in AMD Software and try again: Anti-Lag is listed as skipped, with the reason.
+4. Unplug and press it again: it is refused with "Plug the Ally in first", and nothing is planned or logged.
+5. In the dialog, the undo line names SPL, sPPT and fPPT as the steps without an undo (first time).
+

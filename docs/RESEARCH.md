@@ -20,6 +20,9 @@ This document is the source of truth for every hardware ID, method, buffer layou
 12. [Safety rules derived from this research](#12-safety-rules-derived-from-this-research)
 13. [Bradley's Probe results (2026-11-15)](#13-bradleys-probe-results-2026-11-15)
 14. [Windows tweaks (Phase 3)](#14-windows-tweaks-phase-3)
+15. [ASUS and power controls (Phase 4)](#15-asus-and-power-controls-phase-4)
+16. [AMD graphics features (Phase 5)](#16-amd-graphics-features-phase-5)
+17. [Recommended Plugged-In Setup (Phase 6)](#17-recommended-plugged-in-setup-phase-6)
 
 ---
 
@@ -183,8 +186,8 @@ Armoury Crate can override settings. The service and process names come from G-H
 ## 8. AMD graphics (Phase 5 preview)
 
 - **ADLX** is AMD's supported API. Its runtime `amdadlx64.dll` ships with the Adrenalin driver ([ADLX.h L25][adlx-dll]). The Probe only checks that the file exists and reads its version; it does not load it.
-- Available in ADLX 2.0 ([headers][adlx]): Anti-Lag and Anti-Lag Next (`IADLX3DAntiLag`, `IADLX3DAntiLag1`), Radeon Super Resolution (global, via `IADLX3DSettingsServices1`), Radeon Boost, Radeon Chill, AMD Fluid Motion Frames (`IADLX3DSettingsServices2`), FSR (`IADLX3DSettingsServices3`).
-- **HYPR-RX has no ADLX interface** (none of the ADLX 2.0 headers mention it). The brief says "where controllable"; the honest options are (a) apply its parts one by one (Anti-Lag, RSR, Boost), clearly labelled as *not* HYPR-RX, or (b) guide Bradley to the toggle in AMD Software. Decision for Phase 5.
+- Available in ADLX 2.0 ([headers][adlx]): Anti-Lag and Anti-Lag Next (`IADLX3DAntiLag`, `IADLX3DAntiLag1`), Radeon Super Resolution (global, from the base `IADLX3DSettingsServices::GetRadeonSuperResolution`, vtable slot 14, which Ally Tuner uses), Radeon Boost, Radeon Chill, AMD Fluid Motion Frames (`IADLX3DSettingsServices2`), FSR (`IADLX3DSettingsServices3`).
+- **HYPR-RX has no ADLX interface** (none of the ADLX 2.0 headers mention it). Phase 5 does both honest options: the controllable parts (Anti-Lag, RSR, Boost) are separate settings, never labelled HYPR-RX, and the page tells Bradley where the HYPR-RX toggle is in AMD Software (§16).
 - Documented conflicts to respect: Anti-Lag cannot run with Chill; RSR needs GPU scaling; on some GPUs RSR cannot run with Boost or Image Sharpening ([I3DSettings.h][adlx-3d]).
 - Auto SR is a Microsoft feature; researched in Phase 5.
 
@@ -397,3 +400,80 @@ Rules that follow:
 [ms-dxgi]: https://learn.microsoft.com/windows/win32/api/dxgi/ns-dxgi-dxgi_adapter_desc1
 [ms-vc]: https://learn.microsoft.com/windows/win32/cimwin32prov/win32-videocontroller
 [ms-svc]: https://learn.microsoft.com/windows/win32/cimwin32prov/win32-service
+
+## 15. ASUS and power controls (Phase 4)
+
+Every control below goes through the safety framework. Changes are clamped, confirmed, logged and reversible, and in this build every one is a **dry-run** (`LiveWritesInThisBuild` = false). The change log records the exact call each change *would* make, for example `Would send DEVS 0x001200A3 = 35 (35 W) through ATKACPI.` No code in this build sends DEVS or writes a power setting; the read-only guard tests still enforce that. The first live write of each control waits for Bradley to watch it on the Ally.
+
+| Control | Read | Write it would make | Limits | Sources |
+|---|---|---|---|---|
+| Performance mode | write-only (reads 7) | DEVS `0x00120075` = 0 Balanced / 1 Turbo / 2 Silent | those three only | [GH AsusACPI L72, L169-L173][gh-p4-acpi], Linux asus-wmi L98-L100 |
+| SPL / sPPT / fPPT | write-only (reads 0) | DEVS `0x001200A3`, then `0x001200A0`, then `0x001200C1` (G-Helper's order) | AC 7–35 / 14–45 / 19–55 W; battery 7–35 / 13–45 / 19–55 W | [Linux RC73XA table][lx-armoury-rc73xa], [GH SetPower L349-L405][gh-p4-setpower] |
+| Fan curves (CPU, GPU) | factory curve per mode (DSTS arg 0/1/2) | DEVS `0x00110024` / `0x00110025` with 16 bytes (8 temperatures, then 8 duties). *Firmware curve* re-sends the mode, which is how G-Helper drops a custom curve: the mode set earlier in the same batch, or the last one set (simulated counts in dry-run). It is refused while no mode is known, rather than guessing one. | never below **any** factory curve or the fan floor anywhere: compared as straight lines between points, at every bend of any of them up to 100 °C; temperatures rise, duties never drop; 0–100 % | [GH SetFanCurve L605-L633][gh-p4-fan], [GH AutoFans L231-L262][gh-p4-autofans] |
+| CPU Boost (AC / battery) | `PowerReadAC/DCValueIndex` PERFBOOSTMODE in the active plan | `PowerWriteAC/DCValueIndex`, then `PowerSetActiveScheme` | Microsoft's values 0–4 | [MS PERFBOOSTMODE][ms-boost], [MS PowerWriteACValueIndex][ms-p4-write], [MS PowerSetActiveScheme][ms-p4-setactive] |
+| Battery Care | write-only (reads 0x01880000) | DEVS `0x00120057` = percent | 40–100 %; 100 removes the limit; recommended 80 | [GH BatteryControl L30-L34, L65-L80][gh-p4-battery] |
+| VRAM | `0x000600C4`: current and option list | DEVS `0x000600C4` = the option's value (MB) | only values on the device's own list, and only while that list equals the reviewed one; restart needed | [GH GetVramOptions/SetVramMem L830-L857][gh-p4-vram], [GH Extra.cs L652-L712][gh-p4-vram-ui] |
+| CPU cores | `0x001200D2` (current), `D3` (max), `D4` (min) | DEVS `0x001200D2` = `(E << 8) | P` | between the reviewed min (1 P + 0 E) and max (3 P + 5 E), at least one P-core, only while the device reports that range; restart needed | [GH GetCores/SetCores L859-L878][gh-p4-cores], [GH Extra.cs L590-L634][gh-p4-cores-ui] |
+
+**Profiles.** Built-in: **Performance Max**, Balanced and Silent. Performance Max is Turbo, the firmware's Turbo fan curve, SPL 35 W, sPPT 45 W, fPPT 55 W, and CPU Boost Aggressive. Those limits are the values Linux asus-armoury starts the RC73XA at when plugged in: no AC defaults are listed, so it uses each maximum ([asus-armoury.c L1012-L1026][lx-p4-acinit]). A profile is applied as one confirmed batch, in G-Helper's order: mode, fans, then the limits ([ModeControl L120-L167][gh-p4-mode]). Saved profiles live in settings.json and export/import as JSON. Imports get fresh IDs and never replace anything.
+
+**Auto-apply on AC.** Off by default, and turning it on asks first. When it is on, the plugged-in profile is applied on the change to AC through the same checks, logged with that reason, and is a dry-run in this build.
+
+**Not changed by Reset to Safe Defaults:** CPU Boost, Battery Care, VRAM and cores. Their undo is in the change log; VRAM, cores and CPU Boost are read back, so the value before is known. Reset covers the mode, the fans (firmware curve) and the power limits (via the mode).
+
+**Hypotheses still to check in the watched dry-run (§6.2):** that re-sending the mode restores the firmware's own power limits and fan curve, and that Battery Care holds the charge near the limit.
+
+[gh-p4-acpi]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L169-L173
+[gh-p4-setpower]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L349-L405
+[gh-p4-fan]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L605-L633
+[gh-p4-autofans]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L231-L262
+[gh-p4-battery]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Battery/BatteryControl.cs#L65-L80
+[gh-p4-vram]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L830-L857
+[gh-p4-vram-ui]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Extra.cs#L652-L712
+[gh-p4-cores]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/AsusACPI.cs#L859-L878
+[gh-p4-cores-ui]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Extra.cs#L590-L634
+[gh-p4-mode]: https://github.com/seerge/g-helper/blob/9d1b2a5b79b4ec608c0bc938eef63f3918eecfec/app/Mode/ModeControl.cs#L120-L167
+[lx-p4-acinit]: https://github.com/torvalds/linux/blob/fa2933aac170dd19c6a7f0d7b81a8f537e40915c/drivers/platform/x86/asus-armoury.c#L1012-L1026
+[ms-p4-write]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwriteacvalueindex
+[ms-p4-setactive]: https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetactivescheme
+
+## 16. AMD graphics features (Phase 5)
+
+Read through AMD's ADLX C interface (pinned headers, ADLX 2.0.0.125). The read calls only `IsSupported` and `IsEnabled`. Each change is confirmed, logged and reversible, and is a **dry-run** in this build. The change log records the ADLX call it would make, for example `Would call IADLX3DAntiLag::SetEnabled(true) for the GPU through ADLX.` A Core guard test fails if the Platform code calls any ADLX setter.
+
+| Feature | Reads (vtable slot) | Would call | Notes |
+|---|---|---|---|
+| Radeon Anti-Lag | `IADLX3DSettingsServices::GetAntiLag` (3) → IsSupported (3), IsEnabled (4) | `IADLX3DAntiLag::SetEnabled` | recommended on (brief §11); cannot run with Chill ([I3DSettings.h L75][adlx-3d]) |
+| Radeon Super Resolution | `GetRadeonSuperResolution` (14, global) | `IADLX3DRadeonSuperResolution::SetEnabled` | on some GPUs AMD turns Boost off ([L579][adlx-3d]); the confirmation says so |
+| Radeon Boost | `GetBoost` (5) | `IADLX3DBoost::SetEnabled` | cannot run with Chill; on some GPUs AMD turns RSR off ([L670-L672][adlx-3d]); the confirmation says so |
+| Radeon Chill | `GetChill` (4) | `IADLX3DChill::SetEnabled` | cannot run with Anti-Lag or Boost ([L295][adlx-3d]) |
+
+Sequence: `ADLXInitialize(ADLX_FULL_VERSION)` → `IADLXSystem::GetGPUs` (slot 1; IADLXSystem has no Acquire/Release) → `IADLXGPUList::At_GPUList(0)` (slot 11) → `IADLXSystem::Get3DSettingsServices` (slot 7) → features → `Release` (slot 1) on everything acquired → `ADLXTerminate`. The slot numbers are counted from the C vtable structs in `ISystem.h` (L606-L627, L1195-L1210) and `I3DSettings.h` (L126-L137, L496-L512, L715-L730, L2353-L2367, L3457-L3479).
+
+Rules:
+- **Read only on request.** ADLX is read only when *Read AMD settings* is pressed on the Graphics page, or as part of *Apply Recommended Setup* on Home (Phase 6, §17); both are explicit actions. Nothing reads it on a timer, at startup or on page load. The vtable calls are verified only on the Ally, so an untested driver is never touched unasked. The slot numbers themselves are checked by a unit test against the pinned headers, downloaded at test time (`AdlxSlotsTests`).
+- **Conflicts are refused, not resolved.** AMD turns the conflicting feature off automatically. That change would not be logged or undoable, so Ally Tuner asks for the other feature to be turned off first. A conflicting feature whose state did not read counts as unknown, not off, so the change is refused until it reads.
+- **HYPR-RX, FSR and Auto SR** are not app-controllable. The page shows where each is set (AMD Software, in-game, Windows Settings).
+- Per-game AMD settings are part of the per-game-profile fast follow.
+
+## 17. Recommended Plugged-In Setup (Phase 6)
+
+The brief's one-click setup (§11), built only from settings that already have their own sources, limits and checks (`Core/Power/RecommendedSetup`). It is one batch with one confirmation, and a dry-run in this build. Steps already in place are skipped and refused steps are listed with the reason. Every step is logged and can be undone from the change log, with one exception: SPL, sPPT and fPPT the first time. The device cannot report them, so there is no earlier value, and the confirmation names them. Reset to Safe Defaults resets the mode, which brings back the firmware's own limits.
+
+**Plugged in only.** On battery the setup is refused with a message, because its power limits are plugged-in values. If Windows cannot tell, the confirmation says so.
+
+| Brief §11 | Step |
+|---|---|
+| High sustained power profile (~30–35 W) | Performance Max: Turbo, SPL 35 W, sPPT 45 W, fPPT 55 W (§15) |
+| Aggressive fan curve | the firmware's Turbo curve on both fans |
+| Battery Care | 80 % |
+| Memory Integrity and Virtual Machine Platform off | both off (§14; restart) |
+| Game Mode and related Windows gaming settings | Game Mode, GPU scheduling, windowed-game optimizations on; power mode best performance when plugged in |
+| HYPR-RX + Anti-Lag where controllable | Radeon Anti-Lag on. HYPR-RX is not app-controllable, and the confirmation says where to turn it on (§16) |
+| VRAM 10 GB with restart prompt | 10 GB, from the device's own list (§15) |
+| Leave CPU Boost enabled | not touched, unless it is off, in which case it is set to Aggressive |
+
+Steps that need a restart run last, and the confirmation lists them. After live changes (none in this build), Home shows the restart offer.
+
+Pressing the button also reads the AMD settings, since that is an explicit action (§16).
+

@@ -19,6 +19,9 @@ public sealed partial class MainWindow : Window
 {
     private readonly GamepadService _gamepad;
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _overrideTimer;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _powerTimer;
+    private Core.Detection.PowerSource? _lastPowerSource;
+    private bool _autoApplying;
 
     // Shared with GamepadService so one physical press never moves focus twice (see InputArbiter).
     private readonly InputArbiter _inputArbiter = new();
@@ -56,9 +59,16 @@ public sealed partial class MainWindow : Window
         _overrideTimer.Tick += async (_, _) => await RunOverrideCheckAsync();
         _overrideTimer.Start();
 
+        // Plugged-in profile: checks the power source every 5 s and applies the profile on the change to AC, if on.
+        _powerTimer = DispatcherQueue.CreateTimer();
+        _powerTimer.Interval = TimeSpan.FromSeconds(5);
+        _powerTimer.Tick += async (_, _) => await CheckPowerSourceAsync();
+        _powerTimer.Start();
+
         Closed += (_, _) =>
         {
             _overrideTimer.Stop();
+            _powerTimer.Stop();
             _gamepad.Stop();
         };
     }
@@ -95,6 +105,22 @@ public sealed partial class MainWindow : Window
             {
                 Navigate(typeof(WindowsTweaksPage), null);
             }
+            else if (tag == "power")
+            {
+                Navigate(typeof(PowerPage), null);
+            }
+            else if (tag == "graphics")
+            {
+                Navigate(typeof(GraphicsPage), null);
+            }
+            else if (tag == "battery")
+            {
+                Navigate(typeof(BatteryPage), null);
+            }
+            else if (tag == "profiles")
+            {
+                Navigate(typeof(ProfilesPage), null);
+            }
             else if (Sections.ByTag(tag) is { } section)
             {
                 Navigate(typeof(PlaceholderPage), section);
@@ -121,6 +147,47 @@ public sealed partial class MainWindow : Window
     }
 
     private void OpenChangeLog_Click(object sender, RoutedEventArgs e) => ShowSection("safety");
+
+    private async Task CheckPowerSourceAsync()
+    {
+        if (_autoApplying)
+        {
+            return;
+        }
+
+        _autoApplying = true;
+        try
+        {
+            var services = App.Services;
+            var now = await Task.Run(services.CurrentPowerSource);
+            var previous = _lastPowerSource;
+            _lastPowerSource = now;
+            if (previous is null || Core.Power.AutoApply.OnPowerChange(previous.Value, now, services.Settings) is not { } profile)
+            {
+                return;
+            }
+
+            var settings = services.Settings;
+            var records = await Task.Run(async () =>
+            {
+                var plans = Core.Power.PowerProfiles.Plan(services.Changes, profile);
+                return await services.Changes.ExecuteAsync(ConfirmationText.ConfirmAutoApply(plans, settings));
+            });
+            services.Log.Info($"Plugged in: applied profile {profile.Name} automatically ({records.Count} step(s)).");
+            AutoApplyBanner.Message = services.Gate.EverythingIsDryRun
+                ? $"Applied {profile.Name} automatically as a dry-run: {records.Count} step(s) recorded in the change log, nothing changed."
+                : $"Applied {profile.Name} automatically: {records.Count} step(s), recorded in the change log.";
+            AutoApplyBanner.IsOpen = true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Warn("Applying the plugged-in profile failed.", ex);
+        }
+        finally
+        {
+            _autoApplying = false;
+        }
+    }
 
     private async Task RunOverrideCheckAsync()
     {

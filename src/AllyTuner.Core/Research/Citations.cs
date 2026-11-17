@@ -19,6 +19,8 @@ public static class Citations
     public const string GHelperModeControl = GHelperCommit + "/app/Mode/ModeControl.cs";
     public const string GHelperExtra = GHelperCommit + "/app/Extra.cs";
     public const string GHelperFans = GHelperCommit + "/app/Fans.cs";
+    public const string GHelperBattery = GHelperCommit + "/app/Battery/BatteryControl.cs";
+    public const string GHelperAppConfig = GHelperCommit + "/app/AppConfig.cs";
 
     /// <summary>
     /// G-Helper issue #4843: a ROG Xbox Ally X (RC73XA) owner posted full DSTS endpoint scans
@@ -39,6 +41,11 @@ public static class Citations
     public const string HandheldCompanionAcpi = HandheldCompanionCommit + "/HandheldCompanion/Devices/ASUS/AsusACPI.cs";
     public const string HandheldCompanionDevice = HandheldCompanionCommit + "/HandheldCompanion/Devices/IDevice.cs";
     public const string HandheldCompanionServices = HandheldCompanionCommit + "/HandheldCompanion/Watchers/RogAllySpaceWatcher.cs";
+
+    // CPU Boost writes (Phase 4), Microsoft documentation, retrieved 2026-11-16.
+    public const string MsPowerWriteAcValueIndex = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwriteacvalueindex";
+    public const string MsPowerWriteDcValueIndex = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powerwritedcvalueindex";
+    public const string MsPowerSetActiveScheme = "https://learn.microsoft.com/windows/win32/api/powrprof/nf-powrprof-powersetactivescheme";
 
     // Windows tweaks (Phase 3). Microsoft documentation, retrieved 2026-11-15.
     public const string MsMemoryIntegrity = "https://learn.microsoft.com/windows/security/hardware-security/enable-virtualization-based-protection-of-code-integrity";
@@ -88,4 +95,7 @@ public static class Citations
     // AMD ADLX SDK (GPUOpen-LibrariesAndSDKs/ADLX), commit 32b5a74 (ADLX 2.0.0.125).
     public const string AdlxCommit = "https://github.com/GPUOpen-LibrariesAndSDKs/ADLX/blob/32b5a740d42295c5dfe9026b9f52683da0f3af91";
     public const string AdlxHeader = AdlxCommit + "/SDK/Include/ADLX.h";
+    public const string AdlxDefines = AdlxCommit + "/SDK/Include/ADLXDefines.h";
+    public const string AdlxSystem = AdlxCommit + "/SDK/Include/ISystem.h";
+    public const string Adlx3DSettings = AdlxCommit + "/SDK/Include/I3DSettings.h";
 }
