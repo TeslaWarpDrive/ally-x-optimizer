@@ -167,16 +167,27 @@
           </Grid>
         </Border>
 
-        <!-- Shown when the override check finds that another app changed a setting back. -->
-        <InfoBar
-            x:Name="OverrideBanner"
-            Grid.Row="1"
-            Margin="36,10,36,0"
-            MaxWidth="1048"
-            IsOpen="False"
-            IsClosable="True"
-            Severity="Warning"
-            Title="Another app changed a setting" />
+        <StackPanel Grid.Row="1">
+          <!-- Shown when the override check finds that another app changed a setting back. -->
+          <InfoBar
+              x:Name="OverrideBanner"
+              Margin="36,10,36,0"
+              MaxWidth="1048"
+              IsOpen="False"
+              IsClosable="True"
+              Severity="Warning"
+              Title="Another app changed a setting" />
+
+          <!-- Shown after the plugged-in profile was applied automatically. -->
+          <InfoBar
+              x:Name="AutoApplyBanner"
+              Margin="36,10,36,0"
+              MaxWidth="1048"
+              IsOpen="False"
+              IsClosable="True"
+              Severity="Informational"
+              Title="Plugged in" />
+        </StackPanel>
 
         <Frame x:Name="ContentFrame" Grid.Row="2" />
       </Grid>

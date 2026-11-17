@@ -15,6 +15,12 @@ public enum ChangeOrigin
 
     /// <summary>Re-applied after another app changed the setting back.</summary>
     ReApply,
+
+    /// <summary>Part of "Apply recommended settings".</summary>
+    Recommended,
+
+    /// <summary>Part of "Restore original settings": back to the value before Ally Tuner first changed it.</summary>
+    RestoreOriginal,
 }
 
 /// <summary>How the value before the change is known.</summary>
@@ -81,6 +87,9 @@ public sealed record ChangeRecord
 
     /// <summary>The record this change undid, for <see cref="ChangeOrigin.Undo"/>.</summary>
     public Guid? UndoOf { get; init; }
+
+    /// <summary>The setting's exact stored form before this change, when that matters for undo (startup-app markers).</summary>
+    public string? BeforeRaw { get; init; }
 
     /// <summary>True when the change could be undone from the log: it went through (simulated or applied).</summary>
     [JsonIgnore]
@@ -169,6 +178,19 @@ public sealed class ChangeJournal
         lock (_gate)
         {
             return _lastApplied.TryGetValue(settingId, out var value) ? value : null;
+        }
+    }
+
+    /// <summary>
+    /// The newest change to this setting that went through, simulated (dry-run) or applied, or null. Pages use it to
+    /// show "last simulated" next to "last set", and dry-run descriptions use it for the value a batch just chose.
+    /// </summary>
+    public ChangeRecord? LatestDone(string settingId)
+    {
+        lock (_gate)
+        {
+            return _records.LastOrDefault(r => r.SettingId == settingId && r.Value is not null
+                && r.Outcome is ChangeOutcome.Applied or ChangeOutcome.Simulated);
         }
     }
 

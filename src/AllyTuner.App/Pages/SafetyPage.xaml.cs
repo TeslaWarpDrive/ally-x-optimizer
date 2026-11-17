@@ -2,6 +2,7 @@ using System.Globalization;
 using AllyTuner.Core.Detection;
 using AllyTuner.Core.Logging;
 using AllyTuner.Core.Safety;
+using AllyTuner.Core.Tweaks;
 using AllyTuner.Safety;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -20,7 +21,8 @@ public sealed partial class SafetyPage : Page
         InitializeComponent();
         var services = App.Services;
 
-        foreach (var setting in services.Changes.Settings)
+        // The mode and power limits only: every other control has its own page, and reading them here would block the UI.
+        foreach (var setting in TunableSettings.All)
         {
             SettingPicker.Items.Add(new ComboBoxItem { Content = setting.Name, Tag = setting.Id });
         }

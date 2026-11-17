@@ -21,6 +21,12 @@ public sealed record ChangePlan(
     /// <summary>Extra context for the confirmation, for example why undo uses the safe default.</summary>
     public string? Note { get; init; }
 
+    /// <summary>The setting's exact stored form before this change (see <see cref="IWriteDescriber.CaptureRaw"/>).</summary>
+    public string? BeforeRaw { get; init; }
+
+    /// <summary>For undo and restore: the stored form to put back exactly, captured before the original change.</summary>
+    public string? RestoreRaw { get; init; }
+
     public bool CanProceed => Guard.CanProceed;
 
     /// <summary>True when the setting is known to have this value already.</summary>
@@ -56,6 +62,9 @@ public enum ConfirmedBy
 
     /// <summary>The override policy "re-apply" re-applied a value the person confirmed earlier.</summary>
     ReApplyPolicy,
+
+    /// <summary>The AC profile was applied on plugging in, which the person turned on (and confirmed) in Settings.</summary>
+    AutoApply,
 }
 
 /// <summary>
@@ -130,6 +139,11 @@ public sealed record ConfirmationText(
             lines.Add("A wrong value here can make the device unstable or hot.");
         }
 
+        if (setting.WarningFor(plan.Guard.Value) is { Length: > 0 } warning)
+        {
+            lines.Add(warning);
+        }
+
         lines.Add(DryRunLine(plan.Gate));
         lines.Add(plan.UndoWillBeAvailable ? UndoLine : SafeChangeService.NoUndoReason(setting));
 
@@ -146,31 +160,103 @@ public sealed record ConfirmationText(
     /// <summary>One confirmation for the whole reset. <paramref name="notReset"/> are settings without a value of their own.</summary>
     public static ConfirmationText ForReset(IReadOnlyList<ChangePlan> plans, IReadOnlyList<SettingDefinition> notReset)
     {
-        ArgumentNullException.ThrowIfNull(plans);
         ArgumentNullException.ThrowIfNull(notReset);
+        return ForBatch(
+            "Reset to Safe Defaults", "Reset", "Simulate reset", plans,
+            notReset.Select(s => $"{s.Name}: {s.ResetNote}").ToList(),
+            "Nothing to reset.");
+    }
+
+    /// <summary>
+    /// One confirmation for several changes made together ("Apply recommended", "Restore original"): every step with
+    /// its from → to, restart and warning notes, the dry-run line, and how to undo. <paramref name="extraLines"/>
+    /// explains settings that are not part of it.
+    /// </summary>
+    public static ConfirmationText ForBatch(
+        string name,
+        string applyButton,
+        string simulateButton,
+        IReadOnlyList<ChangePlan> plans,
+        IReadOnlyList<string> extraLines,
+        string nothingToDo)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(extraLines);
         var dryRun = plans.Count == 0 || plans.All(p => p.Gate.IsDryRun);
 
         var lines = new List<string>();
-        lines.AddRange(plans.Select(p => p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}"));
-        lines.AddRange(notReset.Select(s => $"{s.Name}: {s.ResetNote}"));
-        lines.Add(plans.Count == 0
-            ? "Nothing to reset."
-            : dryRun
+        foreach (var p in plans)
+        {
+            lines.Add(p.CanProceed ? $"{p.Setting.Name}: {p.FromTo}" : $"{p.Setting.Name}: skipped. {p.Guard.Note}");
+            if (p.CanProceed && p.Guard.Outcome == GuardOutcome.Clamped)
+            {
+                lines.Add(p.Guard.Note);
+            }
+        }
+
+        lines.AddRange(extraLines);
+
+        var restart = plans.Where(p => p.CanProceed && p.Setting.Risk == ChangeRisk.NeedsRestart).Select(p => p.Setting.Name).ToList();
+        if (restart.Count > 0)
+        {
+            lines.Add($"Needs a restart to take effect: {string.Join(", ", restart)}.");
+        }
+
+        lines.AddRange(plans.Where(p => p.CanProceed).Select(p => p.Setting.WarningFor(p.Guard.Value)).Where(w => w.Length > 0).Distinct());
+
+        if (plans.Count == 0)
+        {
+            lines.Add(nothingToDo);
+        }
+        else
+        {
+            lines.Add(dryRun
                 ? "Dry-run: nothing on the device changes. The change log records what would have happened."
                 : "This changes the device now.");
-        lines.Add("Each step is recorded in the change log.");
+            lines.Add(BatchUndoLine(plans.Where(p => p.CanProceed).ToList()));
+        }
 
         return new ConfirmationText(
-            dryRun ? "Simulate Reset to Safe Defaults?" : "Reset to Safe Defaults?",
+            dryRun ? $"Simulate {name}?" : $"{name}?",
             lines,
-            plans.Any(p => p.CanProceed) ? (dryRun ? "Simulate reset" : "Reset") : null,
+            plans.Any(p => p.CanProceed) ? (dryRun ? simulateButton : applyButton) : null,
             "Cancel",
             dryRun,
             false);
     }
 
+    /// <summary>How the steps of a batch can be undone, naming any that cannot.</summary>
+    public static string BatchUndoLine(IReadOnlyList<ChangePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        var noUndo = plans.Where(p => !p.UndoWillBeAvailable).Select(p => p.Setting.Name).ToList();
+        return noUndo.Count == 0
+            ? "Each step is recorded in the change log. To undo, use Undo on that step in the change log."
+            : $"Each step is recorded in the change log, where Undo reverses it, except: {string.Join(", ", noUndo)} (no earlier value is known).";
+    }
+
     /// <summary>Call only after the person agreed to <see cref="ForReset"/>. Refused plans are left out.</summary>
-    public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans)
+    public static ConfirmedChange ConfirmReset(IReadOnlyList<ChangePlan> plans) => ConfirmBatch(plans);
+
+    /// <summary>
+    /// Confirms an automatic profile apply on plugging in. Allowed only while the person has auto-apply turned on
+    /// (they confirmed it when turning it on); refused plans are left out, and the gate still decides dry-run.
+    /// </summary>
+    public static ConfirmedChange ConfirmAutoApply(IReadOnlyList<ChangePlan> plans, Settings.AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (!settings.AutoApplyOnAc || settings.AcProfileId is null)
+        {
+            throw new InvalidOperationException("Auto-apply is off, so nothing may be applied without a confirmation.");
+        }
+
+        return new ConfirmedChange(plans.Where(p => p.CanProceed).ToList(), ConfirmedBy.AutoApply);
+    }
+
+    /// <summary>Call only after the person agreed to <see cref="ForBatch"/>. Refused plans are left out.</summary>
+    public static ConfirmedChange ConfirmBatch(IReadOnlyList<ChangePlan> plans)
     {
         ArgumentNullException.ThrowIfNull(plans);
         return new ConfirmedChange(plans.Where(p => p.CanProceed).ToList(), ConfirmedBy.Person);

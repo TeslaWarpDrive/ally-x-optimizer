@@ -104,8 +104,43 @@ public sealed record SettingDefinition
     /// <summary>What Reset to Safe Defaults does for this setting, in plain words.</summary>
     public string ResetNote { get; init; } = string.Empty;
 
+    /// <summary>What the setting does, in one or two plain sentences, for the page that shows it.</summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>A caution shown in the confirmation, for example the security cost of turning a protection off.</summary>
+    public string Warning { get; init; } = string.Empty;
+
+    /// <summary>The values the <see cref="Warning"/> is about, or null when it applies to every change.</summary>
+    public IReadOnlyList<int>? WarningForValues { get; init; }
+
+    /// <summary>The warning for a change to <paramref name="value"/>, or an empty string when it does not apply.</summary>
+    public string WarningFor(int? value) =>
+        WarningForValues is null || (value is { } v && WarningForValues.Contains(v)) ? Warning : string.Empty;
+
+    /// <summary>The value the brief recommends for an always-plugged-in Ally, or null when there is no recommendation.</summary>
+    public int? Recommended { get; init; }
+
+    /// <summary>
+    /// True when the way this setting is stored is documented only by community sources, not by Microsoft or ASUS.
+    /// Such settings stay dry-run until a Probe on the Ally confirms the format (see <see cref="WriteGate"/>).
+    /// </summary>
+    public bool NeedsDeviceCheck { get; init; }
+
+    /// <summary>False for settings Reset to Safe Defaults leaves alone (Windows tweaks are reversed from the change log instead).</summary>
+    public bool IncludedInReset { get; init; } = true;
+
+    /// <summary>Which page owns the setting, for example "asus" or "windows".</summary>
+    public string Group { get; init; } = string.Empty;
+
     /// <summary>What to do instead when a change cannot be undone (no earlier value and no safe default).</summary>
-    public string NoUndoAdvice { get; init; } = "Use Reset to Safe Defaults instead.";
+    public string? NoUndoAdvice { get; init; }
+
+    /// <summary>
+    /// <see cref="NoUndoAdvice"/>, or a default that only points to Reset to Safe Defaults when the reset covers this setting.
+    /// </summary>
+    public string UndoAdvice => NoUndoAdvice ?? (IncludedInReset
+        ? "Use Reset to Safe Defaults instead."
+        : "Set it back yourself where you changed it; Reset to Safe Defaults does not cover it.");
 
     /// <summary>The ASUS device ID this setting writes in Phase 4, if any. Live writes need it confirmed on the device.</summary>
     public uint? AsusDeviceId { get; init; }

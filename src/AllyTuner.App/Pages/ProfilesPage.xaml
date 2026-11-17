@@ -1,0 +1,27 @@
+<Page
+    x:Class="AllyTuner.Pages.ProfilesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer>
+    <StackPanel x:Name="Body" Style="{StaticResource PageStackStyle}">
+      <StackPanel.ChildrenTransitions>
+        <TransitionCollection>
+          <EntranceThemeTransition FromVerticalOffset="28" IsStaggeringEnabled="True" />
+        </TransitionCollection>
+      </StackPanel.ChildrenTransitions>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="Profiles" Style="{StaticResource PageTitleTextStyle}" />
+        <TextBlock
+            Style="{StaticResource BodyLargeTextStyle}"
+            Foreground="{StaticResource AuroraMutedBrush}"
+            Text="Saved sets of power settings, applied as one confirmed batch. One can be applied automatically when the Ally is plugged in." />
+      </StackPanel>
+
+      <InfoBar x:Name="RestartInfoBar" IsOpen="False" IsClosable="False" Severity="Warning" />
+
+      <!-- Cards are built in code from the setting definitions, so wording and limits come from Core. -->
+      <StackPanel x:Name="Cards" Spacing="16" />
+    </StackPanel>
+  </ScrollViewer>
+</Page>
