@@ -126,6 +126,12 @@ App/Pages/GraphicsPage      "Read AMD settings", one card per feature, guidance 
 
 Sources: RESEARCH.md §16.
 
+## Recommended Plugged-In Setup (Phase 6)
+
+`Core/Power/RecommendedSetup` lists the brief's steps as (setting, value) pairs and plans them through
+`SafeChangeService` (skipping what is already in place, restart steps last, CPU Boost only if it is off). Home's
+*Apply Recommended Setup…* reads everything fresh, including AMD, and shows one confirmation. RESEARCH.md §17.
+
 ## Controller navigation
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".

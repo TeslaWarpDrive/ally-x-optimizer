@@ -113,3 +113,11 @@ Everything here is a dry-run. Nothing on the device should change, and Armoury C
 4. Simulate Anti-Lag on. The log shows `Would call IADLX3DAntiLag::SetEnabled(true)`, and AMD Software still shows it off.
 5. The guidance card explains HYPR-RX, FSR and Auto SR.
 
+## Phase 6 (Recommended Plugged-In Setup), for the final Ally test
+
+1. Plugged in, on **Home** press *Apply Recommended Setup…*. The dialog lists only what differs on this Ally. Restart steps (Memory integrity, VM Platform, VRAM, and GPU scheduling if it changes) come last and are named in the restart line. The HYPR-RX and CPU Boost notes are shown, and Cancel is selected first.
+2. Simulate it: Home says how many steps were simulated, the change log has one entry per step, and nothing changes in Windows Settings, Armoury Crate or AMD Software.
+3. Turn Radeon Chill on in AMD Software and try again: Anti-Lag is listed as skipped, with the reason.
+4. Unplug and press it again: it is refused with "Plug the Ally in first", and nothing is planned or logged.
+5. In the dialog, the undo line names SPL, sPPT and fPPT as the steps without an undo (first time).
+

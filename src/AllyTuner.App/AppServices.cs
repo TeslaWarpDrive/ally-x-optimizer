@@ -39,7 +39,8 @@ public sealed class AppServices
         var deviceReader = new DeviceControlFactsReader(log, IsSupportedDevice);
         ControlReader = new PowerControlReader(deviceReader.Read, () => Settings, CurrentPerformanceMode, log);
 
-        // AMD features (Phase 5): read through ADLX only when the person presses "Read AMD settings".
+        // AMD features (Phase 5): read through ADLX only on an explicit action: "Read AMD settings" or
+        // "Apply Recommended Setup" (Phase 6).
         AmdReader = new AmdSettingReader(() => AdlxReader.Read(log), log);
         Router = new SettingRouter(
             (PowerControlReader.Owns, ControlReader),
