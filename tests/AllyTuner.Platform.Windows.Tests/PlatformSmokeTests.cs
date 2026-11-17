@@ -127,4 +127,15 @@ public class PlatformSmokeTests
         Assert.Null(facts.Vram);
         Assert.Empty(facts.FactoryCurves);
     }
+
+    [Fact]
+    public void Adlx_read_reports_unavailable_instead_of_failing_without_amd_software()
+    {
+        var facts = AdlxReader.Read(Log);
+        if (!File.Exists(Path.Combine(Environment.SystemDirectory, "amdadlx64.dll")))
+        {
+            Assert.False(facts.Available);
+            Assert.Contains("not installed", facts.Error, StringComparison.Ordinal);
+        }
+    }
 }

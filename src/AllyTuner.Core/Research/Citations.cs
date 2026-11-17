@@ -95,4 +95,7 @@ public static class Citations
     // AMD ADLX SDK (GPUOpen-LibrariesAndSDKs/ADLX), commit 32b5a74 (ADLX 2.0.0.125).
     public const string AdlxCommit = "https://github.com/GPUOpen-LibrariesAndSDKs/ADLX/blob/32b5a740d42295c5dfe9026b9f52683da0f3af91";
     public const string AdlxHeader = AdlxCommit + "/SDK/Include/ADLX.h";
+    public const string AdlxDefines = AdlxCommit + "/SDK/Include/ADLXDefines.h";
+    public const string AdlxSystem = AdlxCommit + "/SDK/Include/ISystem.h";
+    public const string Adlx3DSettings = AdlxCommit + "/SDK/Include/I3DSettings.h";
 }

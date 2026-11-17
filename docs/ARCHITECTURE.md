@@ -115,6 +115,23 @@ Auto-apply: MainWindow checks the power source every 5 s and, on the change to A
 plugged-in profile through `ConfirmationText.ConfirmAutoApply` (allowed only while the person has it turned on).
 Sources and limits: RESEARCH.md §15.
 
+## AMD graphics features (Phase 5)
+
+```
+Core/Amd/AmdFeatures        Anti-Lag, Radeon Super Resolution, Boost, Chill as SettingDefinitions; Interpret,
+                            conflict refusals, ADLX call descriptions; AmdSettingReader (reads only on request)
+Platform/AdlxReader         ADLX C vtable interop, IsSupported / IsEnabled only; AdlxSlots lists every slot used
+App/Pages/GraphicsPage      "Read AMD settings", one card per feature, guidance for HYPR-RX, FSR and Auto SR
+```
+
+Sources: RESEARCH.md §16.
+
+## Recommended Plugged-In Setup (Phase 6)
+
+`Core/Power/RecommendedSetup` lists the brief's steps as (setting, value) pairs and plans them through
+`SafeChangeService` (skipping what is already in place, restart steps last, CPU Boost only if it is off). Home's
+*Apply Recommended Setup…* reads everything fresh, including AMD, and shows one confirmation. RESEARCH.md §17.
+
 ## Controller navigation
 
 `Core/Input/GamepadNavigator` turns controller readings into commands: one step per press, auto-repeat, and stick hysteresis. Buttons held at startup are ignored. It is fully unit-tested. `App/Services/GamepadService` polls `Windows.Gaming.Input` while the window is active and maps the commands to XAML focus moves and UI Automation "invoke".

@@ -34,6 +34,7 @@ public sealed partial class GraphicsPage : Page
             var state = await Task.Run(() => App.Services.ControlReader.State(PowerControls.Vram));
             Cards.Children.Clear();
             Cards.Children.Add(VramCard(state));
+            AddAmdSection();
             UpdateRestartOffer(RestartInfoBar);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -98,14 +99,60 @@ public sealed partial class GraphicsPage : Page
         row.Children.Add(apply);
         panel.Children.Add(row);
 
-        var amd = new StackPanel { Spacing = 6 };
-        amd.Children.Add(new TextBlock { Text = "AMD graphics features", Style = (Style)Res["CardValueTextStyle"], FontSize = 20 });
-        amd.Children.Add(Detail("HYPR-RX, Radeon Anti-Lag and Radeon Super Resolution come in Phase 5."));
+        return Card(panel);
+    }
 
-        var both = new StackPanel { Spacing = 16 };
-        both.Children.Add(Card(panel));
-        both.Children.Add(Card(amd));
-        return new Border { Child = both };
+    /// <summary>
+    /// AMD features through ADLX. Nothing is read until the person presses the button (once per session), so loading
+    /// this page never calls into the AMD driver by itself.
+    /// </summary>
+    private void AddAmdSection()
+    {
+        var reader = App.Services.AmdReader;
+        Cards.Children.Add(new TextBlock { Text = "AMD graphics features", Style = (Style)Res["SectionTitleTextStyle"] });
+
+        var intro = new StackPanel { Spacing = 10 };
+        intro.Children.Add(Detail("Read through AMD's own interface (ADLX), for the Ally's GPU. Global settings for all games; per-game AMD settings come with per-game profiles."));
+        if (reader.HasRead && reader.Facts.Error is { } error)
+        {
+            intro.Children.Add(Detail(error, attention: true));
+        }
+
+        intro.Children.Add(MakeButton(reader.HasRead ? "Read AMD settings again" : "Read AMD settings", null, ReadAmd_Click, accent: !reader.HasRead));
+        Cards.Children.Add(Card(intro));
+
+        if (reader.HasRead && reader.Facts.Available)
+        {
+            foreach (var feature in Core.Amd.AmdFeatures.All)
+            {
+                Cards.Children.Add(ChoiceCard(feature, reader.State(feature), ReloadAsync));
+            }
+        }
+
+        var guidance = new StackPanel { Spacing = 8 };
+        guidance.Children.Add(new TextBlock { Text = "Not controllable by apps", Style = (Style)Res["CardValueTextStyle"], FontSize = 20 });
+        guidance.Children.Add(Detail("HYPR-RX: AMD offers no interface for apps to switch it, so Ally Tuner does not pretend to. Turn it on in AMD Software: Adrenalin Edition, on the Gaming > Graphics tab. Anti-Lag above is one of the features it combines."));
+        guidance.Children.Add(Detail("FSR: chosen inside each game's graphics settings. Auto SR: a Windows feature; if this Windows offers it, it is under Settings > System > Display > Graphics."));
+        Cards.Children.Add(Card(guidance));
+    }
+
+    private async void ReadAmd_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            button.IsEnabled = false;
+        }
+
+        try
+        {
+            await Task.Run(() => App.Services.AmdReader.Refresh());
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            App.Services.Log.Error("Reading AMD settings failed.", ex);
+        }
+
+        await ReloadAsync();
     }
 
     private async void Quick_Click(object sender, RoutedEventArgs e)

@@ -139,9 +139,9 @@ public sealed record ConfirmationText(
             lines.Add("A wrong value here can make the device unstable or hot.");
         }
 
-        if (!string.IsNullOrWhiteSpace(setting.Warning))
+        if (setting.WarningFor(plan.Guard.Value) is { Length: > 0 } warning)
         {
-            lines.Add(setting.Warning);
+            lines.Add(warning);
         }
 
         lines.Add(DryRunLine(plan.Gate));
@@ -203,7 +203,7 @@ public sealed record ConfirmationText(
             lines.Add($"Needs a restart to take effect: {string.Join(", ", restart)}.");
         }
 
-        lines.AddRange(plans.Where(p => p.CanProceed && !string.IsNullOrWhiteSpace(p.Setting.Warning)).Select(p => p.Setting.Warning).Distinct());
+        lines.AddRange(plans.Where(p => p.CanProceed).Select(p => p.Setting.WarningFor(p.Guard.Value)).Where(w => w.Length > 0).Distinct());
 
         if (plans.Count == 0)
         {
